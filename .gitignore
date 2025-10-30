@@ -1,0 +1,16 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+.env
+.DS_Store
+dist/
+build/
+coverage/
+temp/
+tmp/
+*.log
+*.sqlite3
+*.sqlite3-journal
+.vscode/
+.idea/
