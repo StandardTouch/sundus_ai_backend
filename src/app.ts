@@ -9,10 +9,10 @@ dotenv.config();
 const app: Application = express();
 const PORT = process.env.PORT || 3000;
 
-// app.get("/", (_, res: any) => {
-//   res.send("🚀 WhatsApp Chatbot (TypeScript) is running!");
-//   console.log("✅ Root endpoint accessed");
-// });
+app.get("/", (_, res: any) => {
+  console.log("✅ Root endpoint accessed");
+  res.send("🚀 WhatsApp Chatbot (TypeScript) is running!");
+});
 
 app.listen(PORT, () => {
   console.log(`✅ Server started on port ${PORT}`);
