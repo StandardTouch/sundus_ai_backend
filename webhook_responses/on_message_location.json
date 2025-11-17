@@ -1,0 +1,44 @@
+{
+  "id": "691af84a064cd876112beaa1",
+  "created_at": "2025-11-17T10:26:18.273Z",
+  "topic": "message.sender.user",
+  "project_id": "655b383d2c1f7c51b62a7338",
+  "delivery_attempt": "1",
+  "data": {
+    "message": {
+      "type": "message",
+      "id": "691af84a5dafe20f9a41497c",
+      "meta_data": [],
+      "project_id": "655b383d2c1f7c51b62a7338",
+      "phone_number": "917676079163",
+      "contact_id": "65a7adb1aea3c70bc8b7a0d7",
+      "campaign": null,
+      "sender": "USER",
+      "message_content": {
+        "longitude": 76.829864501953,
+        "latitude": 17.317714691162,
+        "address": "",
+        "name": "",
+        "url": ""
+      },
+      "message_type": "LOCATION",
+      "status": "DELIVERED",
+      "is_HSM": false,
+      "chatbot_response": null,
+      "agent_id": null,
+      "sent_at": 1763375176000,
+      "delivered_at": 1763375176000,
+      "read_at": null,
+      "failureResponse": {},
+      "userName": "Yaseen",
+      "countryCode": "91",
+      "submitted_message_id": "",
+      "message_price": 0,
+      "deductionType": null,
+      "mau_details": null,
+      "whatsapp_conversation_details": null,
+      "context": null,
+      "messageId": "wamid.HBgMOTE3Njc2MDc5MTYzFQIAEhgUMkExRDgyQkI2RDlGNDgyRkVBNjAA"
+    }
+  }
+}

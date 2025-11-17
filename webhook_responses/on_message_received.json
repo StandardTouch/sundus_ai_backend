@@ -1,0 +1,40 @@
+{
+  "id": "691af634a77a309eeff49f7b",
+  "created_at": "2025-11-17T10:17:24.109Z",
+  "topic": "message.sender.user",
+  "project_id": "655b383d2c1f7c51b62a7338",
+  "delivery_attempt": "1",
+  "data": {
+    "message": {
+      "type": "message",
+      "id": "691af6345bae1b0fae7dba55",
+      "meta_data": [],
+      "project_id": "655b383d2c1f7c51b62a7338",
+      "phone_number": "917676079163",
+      "contact_id": "65a7adb1aea3c70bc8b7a0d7",
+      "campaign": null,
+      "sender": "USER",
+      "message_content": {
+        "text": "yaseen hello"
+      },
+      "message_type": "TEXT",
+      "status": "DELIVERED",
+      "is_HSM": false,
+      "chatbot_response": null,
+      "agent_id": null,
+      "sent_at": 1763374642000,
+      "delivered_at": 1763374642000,
+      "read_at": null,
+      "failureResponse": {},
+      "userName": "Yaseen",
+      "countryCode": "91",
+      "submitted_message_id": "",
+      "message_price": 0,
+      "deductionType": null,
+      "mau_details": null,
+      "whatsapp_conversation_details": null,
+      "context": null,
+      "messageId": "wamid.HBgMOTE3Njc2MDc5MTYzFQIAEhgWM0VCMDEwOUQ0NjUzRUYwQkVBMjNFOQA="
+    }
+  }
+}

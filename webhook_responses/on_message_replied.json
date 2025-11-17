@@ -1,0 +1,46 @@
+{
+  "id": "691af6623ec61297cb8b6da9",
+  "created_at": "2025-11-17T10:18:10.344Z",
+  "topic": "message.sender.user",
+  "project_id": "655b383d2c1f7c51b62a7338",
+  "delivery_attempt": "1",
+  "data": {
+    "message": {
+      "type": "message",
+      "id": "691af66278b0b00f8aa9316b",
+      "meta_data": [],
+      "project_id": "655b383d2c1f7c51b62a7338",
+      "phone_number": "917676079163",
+      "contact_id": "65a7adb1aea3c70bc8b7a0d7",
+      "campaign": {
+        "name": "ST ANB Offer DEMO Ar 3",
+        "_id": "66b4c51d2427360de0483f43"
+      },
+      "sender": "USER",
+      "message_content": {
+        "text": "this is replied message"
+      },
+      "message_type": "TEXT",
+      "status": "DELIVERED",
+      "is_HSM": false,
+      "chatbot_response": null,
+      "agent_id": null,
+      "sent_at": 1763374688000,
+      "delivered_at": 1763374688000,
+      "read_at": null,
+      "failureResponse": {},
+      "userName": "Yaseen",
+      "countryCode": "91",
+      "submitted_message_id": "",
+      "message_price": 0,
+      "deductionType": null,
+      "mau_details": null,
+      "whatsapp_conversation_details": null,
+      "context": {
+        "from": "966920009339",
+        "id": "wamid.HBgMOTE3Njc2MDc5MTYzFQIAERgSODg3RUVCRTExOUFFMDQ5NzFEAA=="
+      },
+      "messageId": "wamid.HBgMOTE3Njc2MDc5MTYzFQIAEhgWM0VCMDdGRTdEQjU0NUNCRDREODQ2QgA="
+    }
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "id": "691af79484be7f0216e82e78",
+  "created_at": "2025-11-17T10:23:16.292Z",
+  "topic": "message.sender.user",
+  "project_id": "655b383d2c1f7c51b62a7338",
+  "delivery_attempt": "1",
+  "data": {
+    "message": {
+      "type": "message",
+      "id": "691af79481f5620fb4d62776",
+      "meta_data": [],
+      "project_id": "655b383d2c1f7c51b62a7338",
+      "phone_number": "917676079163",
+      "contact_id": "65a7adb1aea3c70bc8b7a0d7",
+      "campaign": null,
+      "sender": "USER",
+      "message_content": {
+        "contacts": [
+          {
+            "name": {
+              "first_name": "Furqan",
+              "last_name": "ST",
+              "formatted_name": "Furqan ST"
+            },
+            "phones": [
+              {
+                "phone": "+91 72047 08561",
+                "wa_id": "917204708561",
+                "type": "CELL"
+              }
+            ]
+          }
+        ]
+      },
+      "message_type": "CONTACT",
+      "status": "DELIVERED",
+      "is_HSM": false,
+      "chatbot_response": null,
+      "agent_id": null,
+      "sent_at": 1763374994000,
+      "delivered_at": 1763374994000,
+      "read_at": null,
+      "failureResponse": {},
+      "userName": "Yaseen",
+      "countryCode": "91",
+      "submitted_message_id": "",
+      "message_price": 0,
+      "deductionType": null,
+      "mau_details": null,
+      "whatsapp_conversation_details": null,
+      "context": null,
+      "messageId": "wamid.HBgMOTE3Njc2MDc5MTYzFQIAEhgUM0VCMDBCMkE4MERFRTNBRjNERDIA"
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "id": "691af751a77a309eeff55178",
+  "created_at": "2025-11-17T10:22:10.806Z",
+  "topic": "message.sender.user",
+  "project_id": "655b383d2c1f7c51b62a7338",
+  "delivery_attempt": "1",
+  "data": {
+    "message": {
+      "type": "message",
+      "id": "691af7528f6a020f89f75b67",
+      "meta_data": [],
+      "project_id": "655b383d2c1f7c51b62a7338",
+      "phone_number": "917676079163",
+      "contact_id": "65a7adb1aea3c70bc8b7a0d7",
+      "campaign": null,
+      "sender": "USER",
+      "message_content": {
+        "url": "https://d2npdtryso7wvr.cloudfront.net/image/655b383d2c1f7c51b62a7338/zkugxzqm_wamidHBgMOTE3Njc2MDc5MTYzFQIAEhgWM0VCMDdEMjE2QjVGNTNFNjYwMjlDQwA",
+        "urlExpiry": "",
+        "mimeType": "image/jpeg"
+      },
+      "message_type": "IMAGE",
+      "status": "DELIVERED",
+      "is_HSM": false,
+      "chatbot_response": null,
+      "agent_id": null,
+      "sent_at": 1763374926000,
+      "delivered_at": 1763374926000,
+      "read_at": null,
+      "failureResponse": {},
+      "userName": "Yaseen",
+      "countryCode": "91",
+      "submitted_message_id": "",
+      "message_price": 0,
+      "deductionType": null,
+      "mau_details": null,
+      "whatsapp_conversation_details": null,
+      "context": null,
+      "messageId": "wamid.HBgMOTE3Njc2MDc5MTYzFQIAEhgWM0VCMDdEMjE2QjVGNTNFNjYwMjlDQwA="
+    }
+  }
+}
