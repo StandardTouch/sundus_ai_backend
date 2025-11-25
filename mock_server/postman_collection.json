@@ -1,0 +1,661 @@
+{
+  "info": {
+    "name": "AI Sensy Mock Webhook Server",
+    "description": "Collection of all endpoints for the AI Sensy Mock Webhook Server",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health & Info",
+      "item": [
+        {
+          "name": "Get Server Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3001/",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": [""]
+            }
+          }
+        },
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3001/health",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["health"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Target URL Management",
+      "item": [
+        {
+          "name": "Get Target URL",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3001/webhook/target",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "target"]
+            }
+          }
+        },
+        {
+          "name": "Set Target URL",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"http://localhost:3000\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3001/webhook/target",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "target"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Field Analysis",
+      "item": [
+        {
+          "name": "Analyze TEXT",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3001/webhook/analyze/TEXT",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "analyze", "TEXT"]
+            }
+          }
+        },
+        {
+          "name": "Analyze QUICK_REPLY",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3001/webhook/analyze/QUICK_REPLY",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "analyze", "QUICK_REPLY"]
+            }
+          }
+        },
+        {
+          "name": "Analyze IMAGE",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3001/webhook/analyze/IMAGE",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "analyze", "IMAGE"]
+            }
+          }
+        },
+        {
+          "name": "Analyze FILE",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3001/webhook/analyze/FILE",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "analyze", "FILE"]
+            }
+          }
+        },
+        {
+          "name": "Analyze AUDIO",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3001/webhook/analyze/AUDIO",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "analyze", "AUDIO"]
+            }
+          }
+        },
+        {
+          "name": "Analyze STICKER",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3001/webhook/analyze/STICKER",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "analyze", "STICKER"]
+            }
+          }
+        },
+        {
+          "name": "Analyze LOCATION",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3001/webhook/analyze/LOCATION",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "analyze", "LOCATION"]
+            }
+          }
+        },
+        {
+          "name": "Analyze CONTACT",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3001/webhook/analyze/CONTACT",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "analyze", "CONTACT"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Preview Webhook",
+      "item": [
+        {
+          "name": "Preview TEXT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message_type\": \"TEXT\",\n  \"text\": \"This is a preview message\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3001/webhook/preview",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "preview"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Send Webhook - Main Endpoint",
+      "item": [
+        {
+          "name": "Send TEXT (Basic)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message_type\": \"TEXT\",\n  \"text\": \"Hello, this is a test message\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3001/webhook/send",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "send"]
+            }
+          }
+        },
+        {
+          "name": "Send TEXT (Custom Fields)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message_type\": \"TEXT\",\n  \"text\": \"Hello from custom user\",\n  \"phone_number\": \"919876543210\",\n  \"userName\": \"John Doe\",\n  \"countryCode\": \"91\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3001/webhook/send",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "send"]
+            }
+          }
+        },
+        {
+          "name": "Send TEXT (Replied with Context)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message_type\": \"TEXT\",\n  \"text\": \"This is a replied message\",\n  \"campaign\": {\n    \"name\": \"Test Campaign\",\n    \"_id\": \"66b4c51d2427360de0483f43\"\n  },\n  \"context\": {\n    \"from\": \"966920009339\",\n    \"id\": \"wamid.HBgMOTE3Njc2MDc5MTYzFQIAERgSODg3RUVCRTExOUFFMDQ5NzFEAA==\"\n  }\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3001/webhook/send",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "send"]
+            }
+          }
+        },
+        {
+          "name": "Send QUICK_REPLY",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message_type\": \"QUICK_REPLY\",\n  \"text\": \"Excellent\",\n  \"callbackPayload\": \"excellent_rating\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3001/webhook/send",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "send"]
+            }
+          }
+        },
+        {
+          "name": "Send IMAGE",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message_type\": \"IMAGE\",\n  \"url\": \"https://d2npdtryso7wvr.cloudfront.net/image/655b383d2c1f7c51b62a7338/test_image.jpg\",\n  \"mimeType\": \"image/jpeg\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3001/webhook/send",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "send"]
+            }
+          }
+        },
+        {
+          "name": "Send FILE",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message_type\": \"FILE\",\n  \"url\": \"https://d2npdtryso7wvr.cloudfront.net/document/655b383d2c1f7c51b62a7338/test_file.pdf\",\n  \"mimeType\": \"application/pdf\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3001/webhook/send",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "send"]
+            }
+          }
+        },
+        {
+          "name": "Send AUDIO",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message_type\": \"AUDIO\",\n  \"url\": \"https://d2npdtryso7wvr.cloudfront.net/audio/655b383d2c1f7c51b62a7338/test_audio.mp3\",\n  \"mimeType\": \"audio/mpeg\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3001/webhook/send",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "send"]
+            }
+          }
+        },
+        {
+          "name": "Send STICKER",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message_type\": \"STICKER\",\n  \"url\": \"https://d2npdtryso7wvr.cloudfront.net/sticker/655b383d2c1f7c51b62a7338/test_sticker.webp\",\n  \"mimeType\": \"image/webp\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3001/webhook/send",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "send"]
+            }
+          }
+        },
+        {
+          "name": "Send LOCATION",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message_type\": \"LOCATION\",\n  \"longitude\": 76.829864501953,\n  \"latitude\": 17.317714691162,\n  \"address\": \"Test Location Address\",\n  \"locationName\": \"Test Place\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3001/webhook/send",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "send"]
+            }
+          }
+        },
+        {
+          "name": "Send CONTACT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message_type\": \"CONTACT\",\n  \"contactName\": {\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\",\n    \"formatted_name\": \"John Doe\"\n  },\n  \"contactPhone\": {\n    \"phone\": \"+91 98765 43210\",\n    \"wa_id\": \"919876543210\",\n    \"type\": \"CELL\"\n  }\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3001/webhook/send",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "send"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Quick Send Endpoints",
+      "item": [
+        {
+          "name": "Quick Send TEXT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Quick text message\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3001/webhook/send/text",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "send", "text"]
+            }
+          }
+        },
+        {
+          "name": "Quick Send QUICK_REPLY",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Great!\",\n  \"callbackPayload\": \"great_response\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3001/webhook/send/quick_reply",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "send", "quick_reply"]
+            }
+          }
+        },
+        {
+          "name": "Quick Send IMAGE",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://example.com/photo.jpg\",\n  \"mimeType\": \"image/jpeg\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3001/webhook/send/image",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "send", "image"]
+            }
+          }
+        },
+        {
+          "name": "Quick Send FILE",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://example.com/document.pdf\",\n  \"mimeType\": \"application/pdf\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3001/webhook/send/file",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "send", "file"]
+            }
+          }
+        },
+        {
+          "name": "Quick Send AUDIO",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://example.com/audio.mp3\",\n  \"mimeType\": \"audio/mpeg\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3001/webhook/send/audio",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "send", "audio"]
+            }
+          }
+        },
+        {
+          "name": "Quick Send STICKER",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://example.com/sticker.webp\",\n  \"mimeType\": \"image/webp\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3001/webhook/send/sticker",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "send", "sticker"]
+            }
+          }
+        },
+        {
+          "name": "Quick Send LOCATION",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"longitude\": 77.2090,\n  \"latitude\": 28.6139,\n  \"address\": \"New Delhi, India\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3001/webhook/send/location",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "send", "location"]
+            }
+          }
+        },
+        {
+          "name": "Quick Send CONTACT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contactName\": {\n    \"first_name\": \"Alice\",\n    \"last_name\": \"Johnson\",\n    \"formatted_name\": \"Alice Johnson\"\n  },\n  \"contactPhone\": {\n    \"phone\": \"+1 555-987-6543\",\n    \"wa_id\": \"15559876543\",\n    \"type\": \"CELL\"\n  }\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3001/webhook/send/contact",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3001",
+              "path": ["webhook", "send", "contact"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3001",
+      "type": "string"
+    }
+  ]
+}
+
