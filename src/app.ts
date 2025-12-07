@@ -1,6 +1,8 @@
 import express from "express";
-import type { Application } from "express";
+import type { Application, Request, Response } from "express";
 import dotenv from "dotenv";
+import { logger } from "./utils/logger.js";
+import { loggingMiddleware } from "./middleware/logging.middleware.js";
 
 // import webhookRouter from "./routes/webhook";
 
@@ -10,14 +12,17 @@ const app: Application = express();
 const PORT = process.env.PORT || 3000;
 app.use(express.json());
 
-app.post("/", (req: any, res: any) => {
-  console.log("📥 Received webhook payload:");
-  console.log(JSON.stringify(req.body, null, 2));
+// Apply logging middleware
+app.use(loggingMiddleware);
 
-  console.log("✅ Root endpoint accessed");
+app.post("/", (req: Request, res: Response) => {
+  logger.info("Received webhook payload", { body: req.body });
   res.send("🚀 WhatsApp Chatbot (TypeScript) is running!");
 });
 
 app.listen(PORT, () => {
-  console.log(`✅ Server started on port ${PORT}`);
+  logger.info(`Server started on port ${PORT}`, { 
+    port: PORT,
+    env: process.env.NODE_ENV || "development",
+  });
 });
