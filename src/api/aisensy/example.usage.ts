@@ -11,7 +11,7 @@ async function exampleSendText() {
   const aisensyService = new AISensyService();
   
   const result = await aisensyService.sendTextMessage(
-    "917089379345",
+    "917676079163",
     "Hello! This is a test message from Sundus AI."
   );
   
@@ -27,7 +27,7 @@ async function exampleSendWithFeedback() {
   const aisensyService = new AISensyService();
   
   const result = await aisensyService.sendMessageWithFeedback(
-    "917089379345",
+    "917676079163",
     "I found 5 Nike watches for you. Here are the top results..."
   );
   
@@ -39,7 +39,7 @@ async function exampleSendImage() {
   const aisensyService = new AISensyService();
   
   const result = await aisensyService.sendImageMessage(
-    "917089379345",
+    "917676079163",
     "https://example.com/product-image.jpg",
     "Nike Watch Model X"
   );
@@ -47,16 +47,100 @@ async function exampleSendImage() {
   console.log("Image sent:", result);
 }
 
-// Example: Send OTP
-async function exampleSendOTP() {
+// Example: Send image gallery (multiple images)
+async function exampleSendImageGallery() {
   const aisensyService = new AISensyService();
   
-  const result = await aisensyService.sendOTPMessage(
-    "917089379345",
-    "123456"
+  const images = [
+    { url: "https://example.com/product-1.jpg", caption: "Product 1" },
+    { url: "https://example.com/product-2.jpg", caption: "Product 2" },
+    { url: "https://example.com/product-3.jpg" },
+  ];
+  
+  const results = await aisensyService.sendImageGallery(
+    "917676079163",
+    images
   );
   
-  console.log("OTP sent:", result);
+  console.log("Image gallery sent:", results);
+}
+
+// Example: Send audio message
+async function exampleSendAudio() {
+  const aisensyService = new AISensyService();
+  
+  const result = await aisensyService.sendAudioMessage(
+    "917676079163",
+    "https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg"
+  );
+  
+  console.log("Audio sent:", result);
+}
+
+// Example: Send document message
+async function exampleSendDocument() {
+  const aisensyService = new AISensyService();
+  
+  const result = await aisensyService.sendDocumentMessage(
+    "917676079163",
+    "https://www.clickdimensions.com/links/TestPDFfile.pdf",
+    "product-catalog.pdf",
+    "Your product catalog"
+  );
+  
+  console.log("Document sent:", result);
+}
+
+// Example: Send quick reply message (interactive buttons)
+async function exampleSendQuickReply() {
+  const aisensyService = new AISensyService();
+  
+  const result = await aisensyService.sendQuickReplyMessage(
+    "917676079163",
+    "Would you like to track your order?",
+    [
+      { text: "Yes", payload: "track_order" },
+      { text: "No", payload: "skip" },
+    ]
+  );
+  
+  console.log("Quick reply sent:", result);
+}
+
+// Example: Send template message (HSM)
+async function exampleSendTemplate() {
+  const aisensyService = new AISensyService();
+  
+  // Template with body parameters
+  const result = await aisensyService.sendTemplateMessage(
+    "917676079163",
+    "sample_shipping_confirmation",
+    "en_us",
+    [
+      {
+        type: "body",
+        parameters: [
+          { type: "text", text: "6-7" }
+        ]
+      }
+    ]
+  );
+  
+  console.log("Template sent:", result);
+}
+
+// Example: Send template with quick reply (empty components)
+async function exampleSendTemplateQuickReply() {
+  const aisensyService = new AISensyService();
+  
+  const result = await aisensyService.sendTemplateMessage(
+    "917676079163",
+    "quicky_reply_type_template",
+    "en"
+    // Empty components array for quick reply templates
+  );
+  
+  console.log("Template quick reply sent:", result);
 }
 
 // Example: Get message details
@@ -65,7 +149,7 @@ async function exampleGetMessageDetails() {
   
   // First send a message
   const sendResult = await aisensyService.sendTextMessage(
-    "917089379345",
+    "917676079163",
     "Test message"
   );
   
@@ -88,7 +172,12 @@ export {
   exampleSendText,
   exampleSendWithFeedback,
   exampleSendImage,
-  exampleSendOTP,
+  exampleSendImageGallery,
+  exampleSendAudio,
+  exampleSendDocument,
+  exampleSendQuickReply,
+  exampleSendTemplate,
+  exampleSendTemplateQuickReply,
   exampleGetMessageDetails,
 };
 
