@@ -53,16 +53,15 @@ sundus_ai_backend/
 │   │       ├── message.api.ts          # Send message API
 │   │       └── webhook.api.ts          # Webhook types
 │   ├── models/
-│   │   ├── conversation.model.ts       # Conversation data model
-│   │   ├── message.model.ts            # Message data model
+│   │   ├── user-session.model.ts       # User session data model
+│   │   ├── conversation-message.model.ts  # Message data model (for storage)
 │   │   ├── feedback.model.ts           # Feedback data model
-│   │   ├── otp.model.ts                # OTP data model
-│   │   └── faq.model.ts                 # FAQ data model
+│   │   └── faq.model.ts                # FAQ data model
 │   ├── repositories/
-│   │   ├── conversation.repository.ts  # Conversation DB operations
-│   │   ├── feedback.repository.ts     # Feedback DB operations
-│   │   ├── otp.repository.ts           # OTP DB operations
-│   │   └── faq.repository.ts          # FAQ DB operations
+│   │   ├── user-session.repository.ts      # User session DB operations
+│   │   ├── conversation-message.repository.ts  # Message storage (last 20 per user)
+│   │   ├── feedback.repository.ts          # Feedback DB operations
+│   │   └── faq.repository.ts               # FAQ DB operations
 │   ├── guardrails/
 │   │   ├── index.ts                    # Main guardrails orchestrator
 │   │   ├── content.moderation.ts       # Content moderation
@@ -172,16 +171,27 @@ export const env = {
 
 #### `message.handler.ts`
 - Main entry point for message processing
+- Load recent messages from database (last 20 per user)
 - Handle message replies (fetch original message if `replied_to_message_id` exists)
-- Initialize conversation context (including reply context)
-- Call AI agent
+- Build complete conversation history (recent messages + reply context + current)
+- Call AI agent with full context
 - Handle agent response
+- Store messages in database (user message + AI response)
+- Auto-cleanup old messages (keep last 20)
 - Send response via AI Sensy
+
+**Context Management:**
+- **Stored:** Last 20 messages per user in `conversation_messages` collection
+- **Purpose:** Better context for OpenAI, AI FAQ suggestions, analytics, debugging
+- **Auto-cleanup:** Older messages automatically removed (keep last 20)
+- **Why:** Context is critical for natural conversations and AI FAQ suggestions
 
 **Reply Handling:**
 When a message contains `replied_to_message_id`, the handler automatically fetches the original message using `aisensyService.getMessageDetails()` and adds it to conversation history. This ensures OpenAI has full context without needing a tool call.
 
-**See:** [Message Reply Handling](../development/MESSAGE_REPLY_HANDLING.md) for implementation details.
+**See:** 
+- [Message Reply Handling](../development/MESSAGE_REPLY_HANDLING.md) for implementation details
+- [Conversation Storage Analysis](../database/CONVERSATION_STORAGE_ANALYSIS.md) for storage rationale
 
 ---
 
@@ -344,17 +354,31 @@ export async function searchProducts(query: string): Promise<ProductResponse> {
 **Purpose:** Data models and TypeScript interfaces
 
 **Files:**
-- `conversation.model.ts` - Conversation data structure
-- `message.model.ts` - Message data structure
+- `user-session.model.ts` - User session data structure
+- `conversation-message.model.ts` - Message data structure (for storage)
 - `feedback.model.ts` - Feedback data structure
-- `otp.model.ts` - OTP data structure
 - `faq.model.ts` - FAQ data structure
 
 **Example:**
 ```typescript
-// models/conversation.model.ts
-export interface Conversation {
-  id: string;
+// models/conversation-message.model.ts
+export interface ConversationMessage {
+  _id?: ObjectId;
+  phone_number: string;
+  message_id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  replied_to_message_id?: string;
+  timestamp: Date;
+  metadata?: {
+    tool_calls?: any[];
+    feedback?: 'yes' | 'no';
+  };
+}
+
+// models/user-session.model.ts
+export interface UserSession {
+  _id?: ObjectId;
   phone_number: string;
   contact_id: string;
   language: 'en' | 'ar' | 'auto';
@@ -374,25 +398,46 @@ export interface Conversation {
 **Purpose:** Database operations (data access layer)
 
 **Files:**
-- `conversation.repository.ts` - Conversation CRUD
+- `user-session.repository.ts` - User session CRUD
+- `conversation-message.repository.ts` - Message storage (last 20 per user, auto-cleanup)
 - `feedback.repository.ts` - Feedback CRUD
-- `otp.repository.ts` - OTP CRUD
 - `faq.repository.ts` - FAQ CRUD
 
 **Example:**
 ```typescript
-// repositories/conversation.repository.ts
-export class ConversationRepository {
-  async findById(id: string): Promise<Conversation | null> {
-    // DB query
+// repositories/conversation-message.repository.ts
+export class ConversationMessageRepository {
+  // Store message (user or assistant)
+  async storeMessage(phoneNumber: string, message: ConversationMessage): Promise<void> {
+    await db.conversation_messages.insertOne({
+      phone_number: phoneNumber,
+      ...message,
+      timestamp: new Date()
+    });
+    
+    // Auto-cleanup: Keep only last 20 messages
+    await this.cleanupOldMessages(phoneNumber, 20);
   }
   
-  async create(data: CreateConversationDto): Promise<Conversation> {
-    // DB insert
+  // Load recent messages (last 20)
+  async getRecentMessages(phoneNumber: string, limit: number = 20): Promise<ConversationMessage[]> {
+    return await db.conversation_messages
+      .find({ phone_number: phoneNumber })
+      .sort({ timestamp: -1 })
+      .limit(limit)
+      .toArray();
   }
   
-  async update(id: string, data: UpdateConversationDto): Promise<Conversation> {
-    // DB update
+  // Auto-cleanup old messages
+  async cleanupOldMessages(phoneNumber: string, keepCount: number): Promise<void> {
+    const messages = await this.getRecentMessages(phoneNumber, keepCount + 1);
+    if (messages.length > keepCount) {
+      const oldest = messages[messages.length - 1];
+      await db.conversation_messages.deleteMany({
+        phone_number: phoneNumber,
+        timestamp: { $lt: oldest.timestamp }
+      });
+    }
   }
 }
 ```

@@ -150,33 +150,50 @@ Admin rejects:
 **Triggers:**
 1. **Frequently Asked Questions**
    - Same/similar question asked multiple times
+   - Analyzed from stored conversation messages (last 20 per user)
    - Threshold: 3+ times in X days
 
 2. **High Confidence Responses**
    - AI gives detailed answer
    - User provides positive feedback
    - Question not covered by existing FAQs
+   - Analyzed from stored conversation messages
 
 3. **Gap Detection**
    - User asks question
    - No existing FAQ matches well (similarity < 0.85)
    - AI provides good answer
    - User gives positive feedback
+   - Detected from stored conversation messages
+
+**Data Source:**
+- AI analyzes stored conversation messages (last 20 per user)
+- Messages stored in `conversation_messages` collection
+- Enables pattern detection and FAQ suggestions
 
 ### Suggestion Process
 
 ```typescript
 // After AI responds to user
-async function analyzeForFAQ(userMessage: string, aiResponse: string, feedback?: 'yes' | 'no') {
-  // 1. Check if question is frequently asked
-  const similarQuestions = await findSimilarQuestions(userMessage);
+async function analyzeForFAQ(
+  phoneNumber: string,
+  userMessage: string, 
+  aiResponse: string, 
+  feedback?: 'yes' | 'no'
+) {
+  // Load recent conversation messages (last 20)
+  const recentMessages = await conversationMessageRepository.getRecentMessages(phoneNumber, 20);
+  
+  // 1. Check if question is frequently asked (from stored messages)
+  const similarQuestions = await findSimilarQuestions(userMessage, recentMessages);
   if (similarQuestions.length >= 3) {
     // Suggest FAQ
     await suggestFAQ({
       question: userMessage,
       answer: aiResponse,
       confidence: 0.9,
-      source_conversation_id: conversationId
+      source_conversation_id: phoneNumber,
+      source_message_id: messageId
     });
   }
   
@@ -188,11 +205,17 @@ async function analyzeForFAQ(userMessage: string, aiResponse: string, feedback?:
       question: userMessage,
       answer: aiResponse,
       confidence: 0.8,
-      source_conversation_id: conversationId
+      source_conversation_id: phoneNumber,
+      source_message_id: messageId
     });
   }
 }
 ```
+
+**Data Source:**
+- AI analyzes stored conversation messages (last 20 per user)
+- Messages stored in `conversation_messages` collection
+- Enables pattern detection and FAQ suggestions
 
 ---
 

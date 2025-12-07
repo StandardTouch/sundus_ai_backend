@@ -94,11 +94,22 @@ docs/
 
 - What we store vs what we don't store
 - User sessions collection
+- Conversation messages collection (recent messages)
 - Feedback collection
 - FAQ collection (with AI suggestions)
 - Indexes and optimization
 
 **Reference this** for database schema and design decisions.
+
+### 6.5. [Conversation Storage Analysis](./database/CONVERSATION_STORAGE_ANALYSIS.md)
+**Should we store conversation history?**
+
+- Comparison: Store vs Don't Store vs Hybrid
+- Pros and cons of each approach
+- Recommendation for Sundus AI
+- Implementation examples
+
+**Read this** to understand the conversation storage decision.
 
 ### 7. [Database Requirements](./database/DATABASE_REQUIREMENTS.md)
 **Database requirements and setup**

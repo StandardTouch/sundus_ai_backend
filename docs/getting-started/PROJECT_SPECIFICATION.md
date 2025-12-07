@@ -21,7 +21,12 @@
 - **OpenAI Integration:** Use GPT-4 or GPT-3.5-turbo with multilingual capabilities
 - **Language Detection:** Detect language from user input or maintain user preference
 - **Prompt Engineering:** Craft system prompts that encourage bilingual responses
-- **Context Management:** Maintain conversation context across messages
+- **Context Management:** 
+  - Store last 20 messages per user in database
+  - Load recent messages for context
+  - Auto-cleanup older messages (keep last 20)
+  - Maintain conversation context across messages
+  - Context is critical for natural conversations
 
 **Challenges:**
 - Arabic RTL (Right-to-Left) text rendering in WhatsApp

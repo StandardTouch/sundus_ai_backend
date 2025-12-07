@@ -60,14 +60,27 @@ POST /webhook
 
 ```typescript
 // message.handler.ts
-- Load conversation history from database
+- Load user session from database (token, feedback count, language)
+- Load recent messages from database (last 20 messages per user)
 - Check if message is a reply (has replied_to_message_id)
 - If reply: Fetch original message context using getMessageDetails()
-- Add original message to conversation history
+- Build conversation history:
+  * Recent messages from database (last 20)
+  * Original message (if reply)
+  * Current user message
 - Prepare message history for OpenAI
 - Get user's language preference
 - Check authentication status
 ```
+
+**Important: Context Management**
+
+We store the **last 20 messages per user** in the database for:
+- ✅ **Better context** - OpenAI gets full conversation history
+- ✅ **AI FAQ suggestions** - Analyze conversations to suggest FAQs
+- ✅ **Reply handling** - Cache original messages
+- ✅ **Analytics** - Track conversation patterns
+- ✅ **Auto-cleanup** - Older messages automatically removed (keep last 20)
 
 **Important: Reply Context Handling**
 
@@ -223,17 +236,26 @@ Return to OpenAI as tool result
 }
 ```
 
-### 9. Send Response via WhatsApp
+### 9. Store Message & Send Response via WhatsApp
 
 ```typescript
 // message.handler.ts
 // This is NOT an AI tool - it's our backend's responsibility!
 
+- Store user message in database (conversation_messages collection)
+- Store AI response in database (conversation_messages collection)
+- Auto-cleanup old messages (keep last 20 per user)
 - Format AI response
 - Add feedback prompt: "Was this helpful? Yes/No"
 - Send via AI Sensy API (aisensy.service.ts)
 - Handle media/images if needed
 ```
+
+**Message Storage:**
+- ✅ Store both user messages and AI responses
+- ✅ Keep last 20 messages per user
+- ✅ Auto-cleanup older messages
+- ✅ Used for context, AI FAQ suggestions, and analytics
 
 **Important:** 
 - ❌ Sending WhatsApp messages is **NOT** an AI tool

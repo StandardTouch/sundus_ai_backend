@@ -4,27 +4,45 @@
 
 ### ✅ Required: MongoDB
 
-**1. Conversations**
+**1. User Sessions**
 - Phone number, contact ID
 - Language preference (en/ar)
 - Status (active/escalated/closed)
 - Negative feedback count
-- Authentication token (after OTP verification) - stored in conversation
+- Positive feedback count
+- Authentication token (after OTP verification)
 - User ID (after OTP verification)
 - Created/updated timestamps
 
-**2. Feedback**
-- Conversation ID
+**2. Conversation Messages (Last 20 per user)**
+- Phone number
+- Message ID
+- Role (user/assistant)
+- Content (message text)
+- Replied to message ID (if reply)
+- Timestamp
+- Metadata (tool calls, feedback)
+
+**Storage Strategy:**
+- Store last 20 messages per user
+- Auto-cleanup older messages
+- Used for context, AI FAQ suggestions, analytics
+
+**3. Feedback**
+- Phone number
 - Message ID
 - Feedback (yes/no)
 - Timestamp
 
-**3. FAQ Metadata**
+**4. FAQ Metadata**
 - Question (EN/AR)
 - Answer (EN/AR)
 - Category
 - Vector DB ID (for Pinecone)
-- Active status
+- Source (manual/ai_suggested)
+- Status (active/pending_review/rejected)
+- AI suggestion details
+- Usage statistics
 - Timestamps
 
 ### ❌ NOT Needed

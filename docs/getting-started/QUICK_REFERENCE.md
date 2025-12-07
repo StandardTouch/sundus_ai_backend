@@ -18,6 +18,8 @@
 - [ ] Language detection
 - [ ] Bilingual prompt engineering
 - [ ] Context management
+- [ ] Conversation message storage (last 20 per user)
+- [ ] Auto-cleanup old messages
 
 ### 2. Feedback System
 - [ ] Quick reply message generation
@@ -144,7 +146,15 @@ Notify AI Sensy → Human Agent Takes Over
 
 ## Database Collections/Tables
 
-1. **conversations** - Active conversations
+1. **user_sessions** - User sessions and state (token, feedback counts, language)
+2. **conversation_messages** - Recent messages (last 20 per user, auto-cleanup)
+3. **feedback** - User feedback records
+4. **faqs** - FAQ metadata (with AI suggestions)
+
+**Storage Strategy:**
+- Store last 20 messages per user in `conversation_messages`
+- Auto-cleanup older messages (keep last 20)
+- Used for context, AI FAQ suggestions, analytics
 2. **feedback** - User feedback records
 3. **otps** - OTP codes for order tracking
 4. **faqs_metadata** - FAQ metadata (embeddings in vector DB)

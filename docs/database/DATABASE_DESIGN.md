@@ -62,7 +62,35 @@
 - Simpler and more accurate name
 - Focuses on what we actually need
 
-### Collection 2: `feedback`
+### Collection 2: `conversation_messages`
+
+```typescript
+{
+  _id: ObjectId,
+  phone_number: string,           // Link to user
+  message_id: string,             // AI Sensy message ID
+  role: 'user' | 'assistant',     // Message role
+  content: string,                 // Message text content
+  replied_to_message_id?: string,  // If reply, original message ID
+  timestamp: Date,                 // Message timestamp
+  metadata?: {
+    tool_calls?: any[],            // Tool calls made (if assistant)
+    feedback?: 'yes' | 'no',       // User feedback (if user)
+  }
+}
+```
+
+**Indexes:**
+- `{ phone_number: 1, timestamp: -1 }` - For loading recent messages
+- `{ message_id: 1 }` - For finding specific messages
+- TTL index on `timestamp` (optional, auto-delete after 90 days)
+
+**Storage Strategy:**
+- Store last 20 messages per user
+- Auto-cleanup older messages
+- Used for context and AI FAQ suggestions
+
+### Collection 3: `feedback`
 
 ```typescript
 {
@@ -74,7 +102,7 @@
 }
 ```
 
-### Collection 3: `faqs`
+### Collection 4: `faqs`
 
 ```typescript
 {
@@ -117,55 +145,51 @@
 - **source**: Distinguishes manual FAQs from AI-suggested ones
 - **status**: Allows admin to review AI suggestions before activating
 
-## Do We Need Conversations?
+## Conversation Storage Decision: Hybrid Approach ✅
 
-### Option 1: Minimal (Recommended) ✅
+**Decision:** Store last 20 messages per user with auto-cleanup
 
-**Store:** User state only (token, feedback count, language)
-**Don't Store:** Full conversation history
+**Why This Approach:**
+- ✅ **Context is critical** - Better conversation continuity
+- ✅ **AI FAQ Suggestions** - Need conversation data to suggest FAQs
+- ✅ **Reply Handling** - Cache original messages for faster access
+- ✅ **Analytics** - Track common questions and patterns
+- ✅ **Debugging** - Easier to debug issues with stored messages
+- ✅ **Balanced** - Not too much storage, not too little context
 
-**Pros:**
-- Simpler
-- Less storage
-- Stateless design
-- Pass history to OpenAI each time
-
-**Cons:**
-- Need to build history from webhook each time (but that's fine)
-
-### Option 2: Full Conversations
-
-**Store:** Every message, full history
-
-**Pros:**
-- Can query past conversations
-- Analytics on conversations
-- Resume conversations after breaks
-
-**Cons:**
-- More complex
-- More storage
-- Probably overkill for our use case
-
-## Recommendation: Minimal Approach ✅
+## Recommendation: Hybrid Approach ✅ (Updated)
 
 **Store:**
 - ✅ User sessions (token, feedback counts, language, status)
 - ✅ Feedback records
 - ✅ FAQ metadata (MongoDB) + FAQ embeddings (Pinecone)
+- ✅ **Recent messages (last 20 per user)** - For context and AI FAQ suggestions
 
 **Don't Store:**
-- ❌ Full conversation history
-- ❌ Individual messages
+- ❌ Full conversation history (everything)
+- ❌ Very old messages (auto-cleanup after 90 days)
 - ❌ OTPs (WordPress handles this)
+
+**Why Store Recent Messages?**
+1. **AI FAQ Suggestions** - Need conversation data to suggest FAQs
+2. **Better Context** - OpenAI gets better context for replies
+3. **Analytics** - Track common questions and patterns
+4. **Reply Handling** - Cache original messages for faster access
+5. **Debugging** - Easier to debug issues with stored messages
 
 **How it works:**
 1. Webhook comes in with message
 2. Load user session (get token, feedback count, language)
-3. Build message history from webhook context (if needed)
-4. Call OpenAI with current message + context
-5. Update user session if needed (token, feedback count)
-6. Store feedback if user provided it
+3. Load recent messages from database (last 20)
+4. If reply: Fetch original message and add to context
+5. Build conversation history (recent messages + current)
+6. Call OpenAI with current message + context
+7. Store current message in database
+8. Update user session if needed (token, feedback count)
+9. Store feedback if user provided it
+10. Auto-cleanup old messages (keep last 20)
+
+**See:** [Conversation Storage Analysis](./CONVERSATION_STORAGE_ANALYSIS.md) for detailed comparison and rationale.
 
 ## MongoDB Schema (Simplified)
 
@@ -184,6 +208,21 @@ interface UserSession {
   token_expires_at?: Date;
   created_at: Date;
   updated_at: Date;
+}
+
+// conversation_messages collection
+interface ConversationMessage {
+  _id: ObjectId;
+  phone_number: string;
+  message_id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  replied_to_message_id?: string;
+  timestamp: Date;
+  metadata?: {
+    tool_calls?: any[];
+    feedback?: 'yes' | 'no';
+  };
 }
 
 // feedback collection
@@ -235,6 +274,11 @@ interface FAQ {
 // user_sessions
 db.user_sessions.createIndex({ phone_number: 1 }, { unique: true });
 db.user_sessions.createIndex({ contact_id: 1 });
+
+// conversation_messages
+db.conversation_messages.createIndex({ phone_number: 1, timestamp: -1 });  // For loading recent messages
+db.conversation_messages.createIndex({ message_id: 1 });  // For finding specific messages
+db.conversation_messages.createIndex({ timestamp: 1 }, { expireAfterSeconds: 7776000 });  // Auto-delete after 90 days (optional)
 
 // feedback
 db.feedback.createIndex({ phone_number: 1 });

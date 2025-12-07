@@ -118,27 +118,43 @@
 ### 2. Message Handler
 
 **Responsibilities:**
-- Load conversation context from database
+- Load conversation context from database (last 20 messages)
 - Handle message replies (fetch original message context)
+- Build complete conversation history
 - Prepare message history for AI
 - Call AI agent with conversation context
 - Handle agent's tool calls
 - Format and send responses
+- Store messages in database (with auto-cleanup)
 
 **Process:**
 - Extract message from webhook
+- Load user session (token, feedback count, language)
+- Load recent messages from database (last 20 per user)
 - Check if message is a reply (`replied_to_message_id`)
 - If reply: Fetch original message using `getMessageDetails()` and add to conversation history
-- Load or create conversation
-- Build conversation history (including reply context)
-- Pass to AI agent
+- Build conversation history:
+  * Recent messages from database (last 20)
+  * Original message (if reply)
+  * Current user message
+- Pass to AI agent with full context
 - Process agent response (direct or tool call)
+- Store current message in database
+- Auto-cleanup old messages (keep last 20)
 - Send response via AI Sensy
+
+**Context Management:**
+- **Stored:** Last 20 messages per user in `conversation_messages` collection
+- **Auto-cleanup:** Older messages automatically removed (keep last 20)
+- **Purpose:** Better context for OpenAI, AI FAQ suggestions, analytics, debugging
+- **Privacy:** Limited storage, auto-cleanup, no long-term retention
 
 **Reply Handling:**
 When a user replies to a message, we automatically fetch the original message context in the backend (not via AI tool) and include it in the conversation history. This ensures OpenAI has full context without needing an extra tool call.
 
-**See:** [Message Reply Handling](../development/MESSAGE_REPLY_HANDLING.md) for implementation details.
+**See:** 
+- [Message Reply Handling](../development/MESSAGE_REPLY_HANDLING.md) for implementation details
+- [Conversation Storage Analysis](../database/CONVERSATION_STORAGE_ANALYSIS.md) for storage rationale
 
 ### 3. AI Agent
 
