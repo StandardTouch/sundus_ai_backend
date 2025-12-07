@@ -172,10 +172,16 @@ export const env = {
 
 #### `message.handler.ts`
 - Main entry point for message processing
-- Initialize conversation context
+- Handle message replies (fetch original message if `replied_to_message_id` exists)
+- Initialize conversation context (including reply context)
 - Call AI agent
 - Handle agent response
 - Send response via AI Sensy
+
+**Reply Handling:**
+When a message contains `replied_to_message_id`, the handler automatically fetches the original message using `aisensyService.getMessageDetails()` and adds it to conversation history. This ensures OpenAI has full context without needing a tool call.
+
+**See:** [Message Reply Handling](../development/MESSAGE_REPLY_HANDLING.md) for implementation details.
 
 ---
 

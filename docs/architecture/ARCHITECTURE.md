@@ -119,6 +119,7 @@
 
 **Responsibilities:**
 - Load conversation context from database
+- Handle message replies (fetch original message context)
 - Prepare message history for AI
 - Call AI agent with conversation context
 - Handle agent's tool calls
@@ -126,11 +127,18 @@
 
 **Process:**
 - Extract message from webhook
+- Check if message is a reply (`replied_to_message_id`)
+- If reply: Fetch original message using `getMessageDetails()` and add to conversation history
 - Load or create conversation
-- Build conversation history
+- Build conversation history (including reply context)
 - Pass to AI agent
 - Process agent response (direct or tool call)
 - Send response via AI Sensy
+
+**Reply Handling:**
+When a user replies to a message, we automatically fetch the original message context in the backend (not via AI tool) and include it in the conversation history. This ensures OpenAI has full context without needing an extra tool call.
+
+**See:** [Message Reply Handling](../development/MESSAGE_REPLY_HANDLING.md) for implementation details.
 
 ### 3. AI Agent
 

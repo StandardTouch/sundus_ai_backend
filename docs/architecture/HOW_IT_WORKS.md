@@ -56,15 +56,44 @@ POST /webhook
 }
 ```
 
-### 3. Load Conversation Context
+### 3. Load Conversation Context & Handle Replies
 
 ```typescript
 // message.handler.ts
 - Load conversation history from database
+- Check if message is a reply (has replied_to_message_id)
+- If reply: Fetch original message context using getMessageDetails()
+- Add original message to conversation history
 - Prepare message history for OpenAI
 - Get user's language preference
 - Check authentication status
 ```
+
+**Important: Reply Context Handling**
+
+When a user replies to a message, the webhook contains `replied_to_message_id`. We handle this in the backend:
+
+```typescript
+// If user is replying to a message
+if (replied_to_message_id) {
+  // Fetch original message (backend code, not AI tool)
+  const originalMessage = await aisensyService.getMessageDetails(replied_to_message_id);
+  
+  // Add to conversation history so AI has context
+  conversationHistory.push({
+    role: "assistant",
+    content: originalMessage.message_content.text
+  });
+}
+```
+
+**Why backend handling?**
+- ✅ Faster - No extra AI tool call needed
+- ✅ More reliable - Context always available
+- ✅ Simpler - AI doesn't need to decide
+- ✅ Better UX - Immediate context understanding
+
+**See:** [Message Reply Handling](../development/MESSAGE_REPLY_HANDLING.md) for complete details.
 
 ### 4. Call OpenAI with Tools Available
 

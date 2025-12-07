@@ -56,7 +56,13 @@
 ```
 User → WhatsApp → AI Sensy → Webhook → Sundus AI
                                               ↓
-                                    OpenAI Processing
+                                    Check if reply (replied_to_message_id)
+                                              ↓
+                                    If reply: Fetch original message context
+                                              ↓
+                                    Load conversation history
+                                              ↓
+                                    OpenAI Processing (with tools)
                                               ↓
                                     Response Generation
                                               ↓
@@ -64,6 +70,24 @@ User → WhatsApp → AI Sensy → Webhook → Sundus AI
                                               ↓
 Sundus AI → AI Sensy → WhatsApp → User
 ```
+
+### Reply Handling Flow
+```
+User replies to message → Webhook with replied_to_message_id
+                                              ↓
+                                    Backend fetches original message
+                                    (using getMessageDetails - not AI tool)
+                                              ↓
+                                    Add original message to conversation history
+                                              ↓
+                                    Send to OpenAI with full context
+                                              ↓
+                                    AI understands reply context automatically
+                                              ↓
+                                    Generate contextual response
+```
+
+**Note:** Reply context is handled in the backend (not via AI tool) for better performance and reliability. See [Message Reply Handling](../development/MESSAGE_REPLY_HANDLING.md) for details.
 
 ### Order Tracking Flow
 ```

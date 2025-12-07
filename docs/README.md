@@ -231,11 +231,21 @@ docs/
 
 **Reference this** when implementing tools or adding new ones.
 
+### 18. [Message Reply Handling](./development/MESSAGE_REPLY_HANDLING.md)
+**How to handle message replies and context**
+
+- Backend pre-fetching approach (recommended)
+- AI tool approach (alternative)
+- Implementation examples
+- Best practices
+
+**Read this** to understand how reply context is handled.
+
 ---
 
 ## 🔧 Operations
 
-### 18. [Logging](./operations/LOGGING.md)
+### 19. [Logging](./operations/LOGGING.md)
 **Logging system and monitoring**
 
 - How to check logs in production
