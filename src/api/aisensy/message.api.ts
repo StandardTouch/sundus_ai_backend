@@ -114,6 +114,44 @@ export class AISensyMessageAPI {
   }
 
   /**
+   * Send audio message
+   */
+  async sendAudio(
+    phoneNumber: string,
+    audioUrl: string
+  ): Promise<AISensyResponse> {
+    return this.sendMessage({
+      to: phoneNumber,
+      type: "audio",
+      recipient_type: "individual",
+      audio: {
+        link: audioUrl,
+      },
+    });
+  }
+
+  /**
+   * Send document message
+   */
+  async sendDocument(
+    phoneNumber: string,
+    documentUrl: string,
+    filename?: string,
+    caption?: string
+  ): Promise<AISensyResponse> {
+    return this.sendMessage({
+      to: phoneNumber,
+      type: "document",
+      recipient_type: "individual",
+      document: {
+        link: documentUrl,
+        filename,
+        caption,
+      },
+    });
+  }
+
+  /**
    * Send interactive message (quick reply buttons)
    */
   async sendInteractive(
@@ -139,6 +177,66 @@ export class AISensyMessageAPI {
             },
           })),
         },
+      },
+    });
+  }
+
+  /**
+   * Send template message (HSM - Highly Structured Messages)
+   * Used for pre-approved WhatsApp Business templates
+   * 
+   * @param phoneNumber - Recipient phone number
+   * @param templateName - Template name (must be approved in WhatsApp Business)
+   * @param languageCode - Language code (e.g., "en_us", "ar", "en")
+   * @param components - Template components (header, body, button parameters)
+   * @returns AI Sensy API response
+   */
+  async sendTemplate(
+    phoneNumber: string,
+    templateName: string,
+    languageCode: string = "en_us",
+    components?: Array<{
+      type: "header" | "body" | "button";
+      parameters?: Array<{
+        type: "text" | "currency" | "date_time" | "image" | "document" | "video";
+        text?: string;
+        currency?: {
+          fallback_value: string;
+          code: string;
+          amount_1000: number;
+        };
+        date_time?: {
+          fallback_value: string;
+        };
+        image?: {
+          link?: string;
+          id?: string;
+        };
+        document?: {
+          link?: string;
+          id?: string;
+          filename?: string;
+        };
+        video?: {
+          link?: string;
+          id?: string;
+        };
+      }>;
+      sub_type?: "url" | "quick_reply" | "text";
+      index?: number;
+    }>
+  ): Promise<AISensyResponse> {
+    return this.sendMessage({
+      to: phoneNumber,
+      type: "template",
+      recipient_type: "individual",
+      template: {
+        name: templateName,
+        language: {
+          policy: "deterministic",
+          code: languageCode,
+        },
+        components: components || [],
       },
     });
   }

@@ -12,7 +12,7 @@ export type PhoneNumber = string;
 /**
  * Message types supported by AI Sensy API
  */
-export type MessageType = "text" | "image" | "interactive" | "audio" | "document" | "sticker" | "location" | "contacts";
+export type MessageType = "text" | "image" | "interactive" | "audio" | "document" | "template";
 
 /**
  * Recipient type
@@ -113,46 +113,62 @@ export interface DocumentMessageRequest extends BaseMessageRequest {
 }
 
 /**
- * Sticker message request
+ * Template parameter types
  */
-export interface StickerMessageRequest extends BaseMessageRequest {
-  type: "sticker";
-  sticker: {
+export type TemplateParameterType = "text" | "currency" | "date_time" | "image" | "document" | "video";
+
+/**
+ * Template parameter
+ */
+export interface TemplateParameter {
+  type: TemplateParameterType;
+  text?: string;
+  currency?: {
+    fallback_value: string;
+    code: string;
+    amount_1000: number;
+  };
+  date_time?: {
+    fallback_value: string;
+  };
+  image?: {
+    link?: string;
+    id?: string;
+  };
+  document?: {
+    link?: string;
+    id?: string;
+    filename?: string;
+  };
+  video?: {
     link?: string;
     id?: string;
   };
 }
 
 /**
- * Location message request
+ * Template component
  */
-export interface LocationMessageRequest extends BaseMessageRequest {
-  type: "location";
-  location: {
-    longitude: number;
-    latitude: number;
-    name?: string;
-    address?: string;
-  };
+export interface TemplateComponent {
+  type: "header" | "body" | "button";
+  parameters?: TemplateParameter[];
+  sub_type?: "url" | "quick_reply" | "text";
+  index?: number;
 }
 
 /**
- * Contact message request
+ * Template message request (HSM - Highly Structured Messages)
  */
-export interface ContactMessageRequest extends BaseMessageRequest {
-  type: "contacts";
-  contacts: Array<{
-    name: {
-      first_name: string;
-      last_name?: string;
-      formatted_name: string;
+export interface TemplateMessageRequest extends BaseMessageRequest {
+  type: "template";
+  template: {
+    name: string;
+    language: {
+      policy: "deterministic" | "fallback";
+      code: string; // e.g., "en_us", "ar", "en"
     };
-    phones: Array<{
-      phone: string;
-      wa_id: string;
-      type?: string;
-    }>;
-  }>;
+    components?: TemplateComponent[];
+  };
 }
 
 /**
@@ -164,9 +180,7 @@ export type MessageRequest =
   | InteractiveMessageRequest
   | AudioMessageRequest
   | DocumentMessageRequest
-  | StickerMessageRequest
-  | LocationMessageRequest
-  | ContactMessageRequest;
+  | TemplateMessageRequest;
 
 /**
  * AI Sensy API response (actual format)
@@ -263,14 +277,6 @@ export interface SendMessageOptions {
   caption?: string;
   audio_url?: string;
   file_url?: string;
-  sticker_url?: string;
-  location?: {
-    latitude: number;
-    longitude: number;
-    name?: string;
-    address?: string;
-  };
-  contact?: ContactMessageRequest["contact"];
   quick_reply?: {
     text: string;
     buttons: QuickReplyButton[];

@@ -71,6 +71,28 @@ export class AISensyService {
   }
 
   /**
+   * Send an audio message
+   */
+  async sendAudioMessage(
+    phoneNumber: PhoneNumber,
+    audioUrl: string
+  ): Promise<AISensyResponse> {
+    return this.api.sendAudio(phoneNumber, audioUrl);
+  }
+
+  /**
+   * Send a document message
+   */
+  async sendDocumentMessage(
+    phoneNumber: PhoneNumber,
+    documentUrl: string,
+    filename?: string,
+    caption?: string
+  ): Promise<AISensyResponse> {
+    return this.api.sendDocument(phoneNumber, documentUrl, filename, caption);
+  }
+
+  /**
    * Send multiple images (for product galleries)
    */
   async sendImageGallery(
@@ -143,6 +165,70 @@ export class AISensyService {
       return null;
     }
     return details.message.status;
+  }
+
+  /**
+   * Send template message (HSM - Highly Structured Messages)
+   * Used for pre-approved WhatsApp Business templates
+   * 
+   * @param phoneNumber - Recipient phone number
+   * @param templateName - Template name (must be approved in WhatsApp Business)
+   * @param languageCode - Language code (e.g., "en_us", "ar", "en")
+   * @param components - Template components with parameters
+   * @returns AI Sensy API response
+   * 
+   * @example
+   * // Send template with body parameters
+   * await sendTemplateMessage(
+   *   "917089379345",
+   *   "sample_shipping_confirmation",
+   *   "en_us",
+   *   [
+   *     {
+   *       type: "body",
+   *       parameters: [
+   *         { type: "text", text: "6-7" }
+   *       ]
+   *     }
+   *   ]
+   * );
+   */
+  async sendTemplateMessage(
+    phoneNumber: PhoneNumber,
+    templateName: string,
+    languageCode: string = "en_us",
+    components?: Array<{
+      type: "header" | "body" | "button";
+      parameters?: Array<{
+        type: "text" | "currency" | "date_time" | "image" | "document" | "video";
+        text?: string;
+        currency?: {
+          fallback_value: string;
+          code: string;
+          amount_1000: number;
+        };
+        date_time?: {
+          fallback_value: string;
+        };
+        image?: {
+          link?: string;
+          id?: string;
+        };
+        document?: {
+          link?: string;
+          id?: string;
+          filename?: string;
+        };
+        video?: {
+          link?: string;
+          id?: string;
+        };
+      }>;
+      sub_type?: "url" | "quick_reply" | "text";
+      index?: number;
+    }>
+  ): Promise<AISensyResponse> {
+    return this.api.sendTemplate(phoneNumber, templateName, languageCode, components);
   }
 }
 
