@@ -187,7 +187,7 @@
 - Database for token storage (session management)
 - AI Sensy API for sending OTP via WhatsApp
 
-**See:** [API Reference](./API_REFERENCE.md) for complete API documentation
+**See:** [API Reference](../apis/API_REFERENCE.md) for complete API documentation
 
 ---
 
@@ -301,7 +301,7 @@ interface FAQ {
 - Embedding generation pipeline
 - AI suggestion system (analyzes conversations)
 
-**See:** [AI FAQ Suggestions](./AI_FAQ_SUGGESTIONS.md) for complete AI suggestion system
+**See:** [AI FAQ Suggestions](../features/AI_FAQ_SUGGESTIONS.md) for complete AI suggestion system
 
 ---
 
@@ -408,7 +408,7 @@ interface FAQ {
 - AI Sensy API for sending product images
 - Product URL generation from slug
 
-**See:** [API Reference](./API_REFERENCE.md) for complete API documentation
+**See:** [API Reference](../apis/API_REFERENCE.md) for complete API documentation
 
 ---
 
@@ -497,8 +497,8 @@ Sundus AI uses an **agentic approach** where OpenAI's function calling feature e
 └─────────────────────────────────────┘
 ```
 
-**See:** [Architecture](./ARCHITECTURE.md) for detailed architecture
-**See:** [Code Structure](./CODE_STRUCTURE.md) for modular code organization
+**See:** [Architecture](../architecture/ARCHITECTURE.md) for detailed architecture
+**See:** [Code Structure](../architecture/CODE_STRUCTURE.md) for modular code organization
 
 ### External Services
 
@@ -521,7 +521,7 @@ Sundus AI uses an **agentic approach** where OpenAI's function calling feature e
    - Message sending
    - Agent handover (if available)
 
-**See:** [API Reference](./API_REFERENCE.md) for complete API documentation
+**See:** [API Reference](../apis/API_REFERENCE.md) for complete API documentation
 
 ### Database Schema
 
@@ -727,7 +727,7 @@ interface FAQMetadata {
   - Product search and retrieval
   - Order tracking
   - OTP authentication
-- **See:** [API Reference](./API_REFERENCE.md) for complete API documentation
+- **See:** [API Reference](../apis/API_REFERENCE.md) for complete API documentation
 
 ### DevOps
 - **Environment:** Node.js 18+
@@ -836,7 +836,7 @@ FAQ_SIMILARITY_THRESHOLD=0.85
    - Generic error messages
    - Secure error logging
 
-**See:** [Guardrails Documentation](./GUARDRAILS.md) for complete guardrails implementation
+**See:** [Guardrails Documentation](../development/GUARDRAILS.md) for complete guardrails implementation
 
 ---
 

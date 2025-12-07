@@ -502,7 +502,7 @@ CREATE TABLE faqs_metadata (
 └─────────────────────────────────────┘
 ```
 
-**See:** [Guardrails Documentation](./GUARDRAILS.md) for complete guardrails implementation
+**See:** [Guardrails Documentation](../development/GUARDRAILS.md) for complete guardrails implementation
 
 ## Scalability Considerations
 

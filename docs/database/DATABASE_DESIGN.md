@@ -281,5 +281,5 @@ db.faqs.createIndex({ usage_count: -1 });  // For finding popular FAQs
 
 **See:** 
 - [FAQ Storage Explanation](./FAQ_STORAGE_EXPLANATION.md) for storage details
-- [AI FAQ Suggestions](./AI_FAQ_SUGGESTIONS.md) for AI suggestion system
+- [AI FAQ Suggestions](../features/AI_FAQ_SUGGESTIONS.md) for AI suggestion system
 

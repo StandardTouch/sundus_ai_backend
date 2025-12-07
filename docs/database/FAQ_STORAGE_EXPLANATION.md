@@ -184,5 +184,5 @@ User: "How do I return something?"
 - MongoDB = Content (what to show users) + Metadata (source, status, usage)
 - Pinecone = Search (how to find relevant FAQs)
 
-**See:** [AI FAQ Suggestions](./AI_FAQ_SUGGESTIONS.md) for complete AI suggestion system
+**See:** [AI FAQ Suggestions](../features/AI_FAQ_SUGGESTIONS.md) for complete AI suggestion system
 

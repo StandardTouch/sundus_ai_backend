@@ -5,6 +5,8 @@
 
 import winston from "winston";
 import dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
 
 dotenv.config();
 
@@ -78,16 +80,39 @@ const createLogger = (): winston.Logger => {
     }),
   ];
 
-  // File transports (optional - can add later)
-  // if (process.env.LOG_FILE_PATH) {
-  //   transports.push(
-  //     new winston.transports.File({
-  //       filename: process.env.LOG_FILE_PATH,
-  //       format: jsonFormat,
-  //       level: logLevel,
-  //     })
-  //   );
-  // }
+  // File transports for production
+  const logDir = process.env.LOG_DIR || "./logs";
+  const enableFileLogging = process.env.ENABLE_FILE_LOGGING === "true" || !isDevelopment;
+
+  if (enableFileLogging) {
+    // Ensure log directory exists
+    const absoluteLogDir = path.resolve(logDir);
+    if (!fs.existsSync(absoluteLogDir)) {
+      fs.mkdirSync(absoluteLogDir, { recursive: true });
+    }
+
+    // Combined log file (all logs)
+    transports.push(
+      new winston.transports.File({
+        filename: path.join(absoluteLogDir, "combined.log"),
+        format: jsonFormat,
+        level: logLevel,
+        maxsize: 10485760, // 10MB
+        maxFiles: 5,
+      })
+    );
+
+    // Error log file (errors only)
+    transports.push(
+      new winston.transports.File({
+        filename: path.join(absoluteLogDir, "error.log"),
+        format: jsonFormat,
+        level: "error",
+        maxsize: 10485760, // 10MB
+        maxFiles: 5,
+      })
+    );
+  }
 
   return winston.createLogger({
     levels: LOG_LEVELS,

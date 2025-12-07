@@ -450,7 +450,7 @@ Output Filtering
 Send Response
 ```
 
-**See:** [Guardrails Documentation](./GUARDRAILS.md) for complete details
+**See:** [Guardrails Documentation](../development/GUARDRAILS.md) for complete details
 
 ---
 

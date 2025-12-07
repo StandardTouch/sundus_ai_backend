@@ -1,10 +1,25 @@
 # Sundus AI Documentation
 
-Welcome to the Sundus AI chatbot documentation. This directory contains comprehensive documentation for the WhatsApp chatbot project.
+Welcome to the Sundus AI chatbot documentation. This directory contains comprehensive documentation organized by category.
 
-## 📚 Documentation Index
+## 📚 Documentation Structure
 
-### 1. [Project Specification](./PROJECT_SPECIFICATION.md)
+```
+docs/
+├── getting-started/     # Start here
+├── architecture/        # System design
+├── database/            # Database docs
+├── apis/                # API documentation
+├── features/            # Feature documentation
+├── development/         # Development guides
+└── operations/          # Operations & maintenance
+```
+
+---
+
+## 🚀 Getting Started
+
+### 1. [Project Specification](./getting-started/PROJECT_SPECIFICATION.md)
 **Complete project specification and feasibility analysis**
 
 - Detailed analysis of all 6 core features
@@ -17,24 +32,7 @@ Welcome to the Sundus AI chatbot documentation. This directory contains comprehe
 
 **Read this first** for a complete understanding of the project.
 
----
-
-### 2. [Architecture](./ARCHITECTURE.md)
-**System architecture and technical design**
-
-- High-level architecture diagrams
-- Component details
-- Data flow diagrams
-- Database schema
-- API integration points
-- Security architecture
-- Scalability considerations
-
-**Read this** to understand how the system is designed and how components interact.
-
----
-
-### 3. [Quick Reference](./QUICK_REFERENCE.md)
+### 2. [Quick Reference](./getting-started/QUICK_REFERENCE.md)
 **Quick reference guide for development**
 
 - Feature summary table
@@ -49,34 +47,33 @@ Welcome to the Sundus AI chatbot documentation. This directory contains comprehe
 
 ---
 
-### 4. [Additional Features](./ADDITIONAL_FEATURES.md)
-**Extended feature suggestions and recommendations**
+## 🏗️ Architecture
 
-- 15+ additional feature suggestions
-- Feature priority matrix
-- Implementation recommendations
-- ROI estimation
-- Feature dependencies
+### 3. [Architecture](./architecture/ARCHITECTURE.md)
+**System architecture and technical design**
 
-**Review this** for future enhancements and feature planning.
+- High-level architecture diagrams
+- Component details
+- Data flow diagrams
+- Database schema
+- API integration points
+- Security architecture
+- Scalability considerations
 
----
+**Read this** to understand how the system is designed and how components interact.
 
-### 5. [API Reference](./API_REFERENCE.md)
-**Complete API documentation for external integrations**
+### 4. [How It Works](./architecture/HOW_IT_WORKS.md)
+**Detailed explanation of the system architecture**
 
-- Alhomaidhi Group API endpoints
-- Authentication APIs (OTP)
-- Product APIs (search, brands, details)
-- Order APIs (list, retrieve)
-- Request/response examples
-- Integration flows
+- How the system works (step-by-step)
+- OpenAI Function Calling vs MCP
+- Complete flow diagrams
+- Technology stack
+- Why this architecture
 
-**Reference this** when implementing API integrations.
+**Read this** to understand exactly how everything works together.
 
----
-
-### 6. [Code Structure](./CODE_STRUCTURE.md)
+### 5. [Code Structure](./architecture/CODE_STRUCTURE.md)
 **Modular code architecture and organization**
 
 - Project structure
@@ -90,7 +87,115 @@ Welcome to the Sundus AI chatbot documentation. This directory contains comprehe
 
 ---
 
-### 7. [Guardrails & Safety](./GUARDRAILS.md)
+## 💾 Database
+
+### 6. [Database Design](./database/DATABASE_DESIGN.md)
+**MongoDB schema and database structure**
+
+- What we store vs what we don't store
+- User sessions collection
+- Feedback collection
+- FAQ collection (with AI suggestions)
+- Indexes and optimization
+
+**Reference this** for database schema and design decisions.
+
+### 7. [Database Requirements](./database/DATABASE_REQUIREMENTS.md)
+**Database requirements and setup**
+
+- Required collections/tables
+- What we don't need to store
+- Environment variables
+- Database schema overview
+
+**Read this** to understand database requirements.
+
+### 8. [FAQ Storage Explanation](./database/FAQ_STORAGE_EXPLANATION.md)
+**How FAQs are stored in MongoDB and Pinecone**
+
+- MongoDB metadata storage
+- Pinecone vector embeddings
+- How FAQ search works
+- Data flow diagrams
+
+**Read this** to understand the hybrid storage approach for FAQs.
+
+---
+
+## 🔌 APIs
+
+### 9. [API Reference](./apis/API_REFERENCE.md)
+**Complete API documentation for external integrations**
+
+- Alhomaidhi Group API endpoints
+- Authentication APIs (OTP)
+- Product APIs (search, brands, details)
+- Order APIs (list, retrieve)
+- Request/response examples
+- Integration flows
+
+**Reference this** when implementing API integrations.
+
+### 10. [Alhomaidhi API Key Explanation](./apis/ALHOMAIDHI_API_KEY_EXPLANATION.md)
+**Why we need the ALHOMAIDHI_API_KEY**
+
+- Public endpoints (products, brands) - uses API key
+- Private endpoints (orders) - uses token from OTP
+- Authentication flow
+
+**Read this** to understand API authentication.
+
+### 11. [Webhook Documentation](./apis/WEBHOOK_DOCUMENTATION.md)
+**AI Sensy webhook payload structure**
+
+- Complete webhook payload documentation
+- Message types and formats
+- Event handling
+
+**Reference this** for webhook integration.
+
+---
+
+## ✨ Features
+
+### 12. [AI FAQ Suggestions](./features/AI_FAQ_SUGGESTIONS.md)
+**Self-improving FAQ system with AI suggestions**
+
+- Base FAQs (manual) vs AI-suggested FAQs
+- How AI suggests FAQs from conversations
+- Admin review workflow
+- Continuous improvement system
+- Database structure for FAQ sources and status
+
+**Read this** to understand the self-improving FAQ system.
+
+### 13. [Message Sending](./features/MESSAGE_SENDING.md)
+**How WhatsApp messages are sent (NOT an AI tool)**
+
+- Why message sending is not a tool
+- Message sending flow
+- AI Sensy API integration
+- Special cases (OTP, images, feedback)
+- Implementation details
+
+**Important:** Understand that sending messages is backend orchestration, not an AI tool!
+
+### 14. [Additional Features](./features/ADDITIONAL_FEATURES.md)
+**Extended feature suggestions and recommendations**
+
+- 15+ additional feature suggestions
+- Feature priority matrix
+- Implementation recommendations
+- ROI estimation
+- Feature dependencies
+
+**Review this** for future enhancements and feature planning.
+
+---
+
+## 🛠️ Development
+
+### 15. [Guardrails & Safety](./development/GUARDRAILS.md)
 **Comprehensive guardrails and safety mechanisms**
 
 - Content moderation
@@ -104,22 +209,7 @@ Welcome to the Sundus AI chatbot documentation. This directory contains comprehe
 
 **Critical reading** for production deployment.
 
----
-
-### 8. [How It Works](./HOW_IT_WORKS.md)
-**Detailed explanation of the system architecture**
-
-- How the system works (step-by-step)
-- OpenAI Function Calling vs MCP
-- Complete flow diagrams
-- Technology stack
-- Why this architecture
-
-**Read this** to understand exactly how everything works together.
-
----
-
-### 9. [Tool Design Guide](./TOOL_DESIGN_GUIDE.md)
+### 16. [Tool Design Guide](./development/TOOL_DESIGN_GUIDE.md)
 **How AI intelligently selects tools**
 
 - How tool descriptions work
@@ -130,9 +220,7 @@ Welcome to the Sundus AI chatbot documentation. This directory contains comprehe
 
 **Critical reading** - explains how AI knows which tool to call without extra prompts!
 
----
-
-### 10. [Tools Reference](./TOOLS_REFERENCE.md)
+### 17. [Tools Reference](./development/TOOLS_REFERENCE.md)
 **Complete list of all available tools**
 
 - All 8 tools defined
@@ -145,90 +233,19 @@ Welcome to the Sundus AI chatbot documentation. This directory contains comprehe
 
 ---
 
-### 11. [Message Sending](./MESSAGE_SENDING.md)
-**How WhatsApp messages are sent (NOT an AI tool)**
+## 🔧 Operations
 
-- Why message sending is not a tool
-- Message sending flow
-- AI Sensy API integration
-- Special cases (OTP, images, feedback)
-- Implementation details
+### 18. [Logging](./operations/LOGGING.md)
+**Logging system and monitoring**
 
-**Important:** Understand that sending messages is backend orchestration, not an AI tool!
+- How to check logs in production
+- Log levels and configuration
+- File logging setup
+- Monitoring and troubleshooting
 
----
-
-### 12. [AI FAQ Suggestions](./AI_FAQ_SUGGESTIONS.md)
-**Self-improving FAQ system with AI suggestions**
-
-- Base FAQs (manual) vs AI-suggested FAQs
-- How AI suggests FAQs from conversations
-- Admin review workflow
-- Continuous improvement system
-- Database structure for FAQ sources and status
-
-**Read this** to understand the self-improving FAQ system.
+**Read this** for production logging and monitoring.
 
 ---
-
-### 13. [Database Design](./DATABASE_DESIGN.md)
-**MongoDB schema and database structure**
-
-- What we store vs what we don't store
-- User sessions collection
-- Feedback collection
-- FAQ collection (with AI suggestions)
-- Indexes and optimization
-
-**Reference this** for database schema and design decisions.
-
----
-
-### 14. [Database Requirements](./DATABASE_REQUIREMENTS.md)
-**Database requirements and setup**
-
-- Required collections/tables
-- What we don't need to store
-- Environment variables
-- Database schema overview
-
-**Read this** to understand database requirements.
-
----
-
-### 15. [FAQ Storage Explanation](./FAQ_STORAGE_EXPLANATION.md)
-**How FAQs are stored in MongoDB and Pinecone**
-
-- MongoDB metadata storage
-- Pinecone vector embeddings
-- How FAQ search works
-- Data flow diagrams
-
-**Read this** to understand the hybrid storage approach for FAQs.
-
----
-
-### 16. [Alhomaidhi API Key Explanation](./ALHOMAIDHI_API_KEY_EXPLANATION.md)
-**Why we need the ALHOMAIDHI_API_KEY**
-
-- Public endpoints (products, brands) - uses API key
-- Private endpoints (orders) - uses token from OTP
-- Authentication flow
-
-**Read this** to understand API authentication.
-
----
-
-## 🚀 Quick Start
-
-1. **Read [How It Works](./HOW_IT_WORKS.md)** - Understand the system architecture first
-2. **Read [Project Specification](./PROJECT_SPECIFICATION.md)** to understand the complete project
-3. **Review [Architecture](./ARCHITECTURE.md)** to understand agentic system design
-4. **Study [Code Structure](./CODE_STRUCTURE.md)** for modular architecture
-5. **⚠️ Read [Guardrails & Safety](./GUARDRAILS.md)** - Critical for production
-6. **Use [Quick Reference](./QUICK_REFERENCE.md)** during development
-7. **Check [Additional Features](./ADDITIONAL_FEATURES.md)** for future planning
-8. **Reference [API Reference](./API_REFERENCE.md)** for API integrations
 
 ## 📋 Core Features Summary
 
@@ -246,14 +263,14 @@ Welcome to the Sundus AI chatbot documentation. This directory contains comprehe
 ```
 sundus_ai_backend/
 ├── docs/                    # Documentation (this folder)
-│   ├── README.md           # This file
-│   ├── PROJECT_SPECIFICATION.md
-│   ├── ARCHITECTURE.md      # Agentic architecture
-│   ├── CODE_STRUCTURE.md    # Modular code structure
-│   ├── QUICK_REFERENCE.md
-│   ├── API_REFERENCE.md
-│   └── ADDITIONAL_FEATURES.md
-├── src/                     # Main application code (modular structure)
+│   ├── getting-started/     # Start here
+│   ├── architecture/        # System design
+│   ├── database/            # Database docs
+│   ├── apis/                # API documentation
+│   ├── features/            # Feature docs
+│   ├── development/         # Dev guides
+│   └── operations/          # Operations
+├── src/                     # Main application code
 │   ├── app.ts              # Express server
 │   ├── handlers/           # Request handlers
 │   ├── agent/              # AI agent & tools
@@ -262,9 +279,7 @@ sundus_ai_backend/
 │   ├── models/             # Data models
 │   ├── repositories/       # Database operations
 │   └── utils/              # Utilities
-├── mock_server/            # Mock webhook server for testing
-│   ├── src/
-│   └── WEBHOOK_DOCUMENTATION.md
+├── mock_server/            # Mock webhook server
 └── webhook_responses/      # Example webhook payloads
 ```
 
@@ -274,30 +289,26 @@ sundus_ai_backend/
 1. **Architecture Approach** ✅
    - ✅ Agentic approach with OpenAI function calling
    - ✅ Modular code structure (one file per operation)
-   - See [Code Structure](./CODE_STRUCTURE.md)
+   - See [Code Structure](./architecture/CODE_STRUCTURE.md)
 
-2. **Order System Integration** ✅
+2. **Database Choice** ✅
+   - MongoDB - Primary database (user sessions, feedback, FAQ metadata)
+   - Pinecone - Vector database (FAQ embeddings)
+
+3. **Order System Integration** ✅
    - ✅ API endpoints confirmed
    - ✅ Authentication method (OTP) confirmed
-   - See [API Reference](./API_REFERENCE.md)
+   - See [API Reference](./apis/API_REFERENCE.md)
 
-3. **Product Catalog** ✅
+4. **Product Catalog** ✅
    - ✅ API endpoints confirmed
    - ✅ Search implementation confirmed
-   - See [API Reference](./API_REFERENCE.md)
+   - See [API Reference](./apis/API_REFERENCE.md)
 
 ### ⚠️ Pending
 1. **AI Sensy Agent Handover**
    - API documentation
    - Integration method
-
-### ✅ Resolved
-1. **Database Choice** ✅
-   - MongoDB - Primary database (user sessions, feedback, FAQ metadata)
-   - Pinecone - Vector database (FAQ embeddings)
-
-2. **Vector Database Choice** ✅
-   - Pinecone - Chosen for FAQ semantic search
 
 ## 📝 Next Steps
 
@@ -322,14 +333,8 @@ sundus_ai_backend/
 
 - [AI Sensy Webhook Documentation](../mock_server/WEBHOOK_DOCUMENTATION.md) - Complete webhook structure
 - [Mock Server README](../mock_server/README.md) - Testing webhook server
-- [API Reference](./API_REFERENCE.md) - Alhomaidhi Group API documentation
-
-## 📞 Questions?
-
-Refer to the "Questions to Resolve" section in [Project Specification](./PROJECT_SPECIFICATION.md) for items that need clarification before implementation.
 
 ---
 
 _Last Updated: [Current Date]_
 _Version: 1.0.0_
-
