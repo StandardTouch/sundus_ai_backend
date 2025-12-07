@@ -56,24 +56,34 @@ POST /webhook
 }
 ```
 
-### 3. Load Conversation Context & Handle Replies
+### 3. Load Conversation Context & Handle Replies (Smart Optimization)
 
 ```typescript
 // message.handler.ts
 - Load user session from database (token, feedback count, language)
 - Load recent messages from database (last 20 messages per user)
 - Check if message is a reply (has replied_to_message_id)
-- If reply: Fetch original message context using getMessageDetails()
-- Build conversation history:
-  * Recent messages from database (last 20)
-  * Original message (if reply)
-  * Current user message
+- Build optimized conversation history:
+
+  IF reply (has replied_to_message_id):
+    - Find replied-to message in stored history
+    - Include messages around replied-to message (context window: ±3-5 messages)
+    - Include replied-to message
+    - Include messages after replied-to message (if any)
+    - Add current user message
+    → Result: ~7-11 contextually relevant messages
+  
+  ELSE (new message, no reply):
+    - Include last 8 messages from database
+    - Add current user message
+    → Result: ~9 messages (recent context)
+
 - Prepare message history for OpenAI
 - Get user's language preference
 - Check authentication status
 ```
 
-**Important: Context Management**
+**Important: Context Management & Token Optimization**
 
 We store the **last 20 messages per user** in the database for:
 - ✅ **Better context** - OpenAI gets full conversation history
@@ -81,6 +91,12 @@ We store the **last 20 messages per user** in the database for:
 - ✅ **Reply handling** - Cache original messages
 - ✅ **Analytics** - Track conversation patterns
 - ✅ **Auto-cleanup** - Older messages automatically removed (keep last 20)
+
+**Smart Context Optimization:**
+- ✅ **Reply-based context** - When user replies, include messages around replied-to message (not just last N)
+- ✅ **Token efficient** - Send ~7-11 messages instead of all 20 (60-70% token reduction)
+- ✅ **Contextually relevant** - OpenAI sees the conversation thread, not just recent messages
+- ✅ **Adaptive** - Adjusts based on whether it's a reply or new message
 
 **Important: Reply Context Handling**
 

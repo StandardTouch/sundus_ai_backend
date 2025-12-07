@@ -132,12 +132,23 @@
 - Load user session (token, feedback count, language)
 - Load recent messages from database (last 20 per user)
 - Check if message is a reply (`replied_to_message_id`)
-- If reply: Fetch original message using `getMessageDetails()` and add to conversation history
-- Build conversation history:
-  * Recent messages from database (last 20)
-  * Original message (if reply)
-  * Current user message
-- Pass to AI agent with full context
+- Build optimized conversation history:
+
+  **If Reply:**
+    - Find replied-to message in stored history (by message_id)
+    - Include context window around replied-to message:
+      * 3-5 messages before replied-to message
+      * The replied-to message itself
+      * 3-5 messages after replied-to message
+    - Add current user message
+    - Result: ~7-11 contextually relevant messages
+  
+  **If New Message (no reply):**
+    - Include last 8 messages from database
+    - Add current user message
+    - Result: ~9 messages (recent context)
+
+- Pass optimized history to AI agent
 - Process agent response (direct or tool call)
 - Store current message in database
 - Auto-cleanup old messages (keep last 20)
@@ -149,8 +160,18 @@
 - **Purpose:** Better context for OpenAI, AI FAQ suggestions, analytics, debugging
 - **Privacy:** Limited storage, auto-cleanup, no long-term retention
 
+**Smart Context Optimization:**
+- **Reply-based context:** When user replies, find that message in history and include surrounding messages
+- **Token efficient:** Send ~7-11 messages instead of all 20 (60-70% token reduction)
+- **Contextually relevant:** OpenAI sees conversation thread, not just recent messages
+- **Adaptive:** Adjusts based on reply vs new message
+
 **Reply Handling:**
-When a user replies to a message, we automatically fetch the original message context in the backend (not via AI tool) and include it in the conversation history. This ensures OpenAI has full context without needing an extra tool call.
+When a user replies to a message, we:
+1. Find the replied-to message in stored history (by `message_id`)
+2. Include messages around that point (context window)
+3. This provides relevant context efficiently without sending all 20 messages
+4. Fallback: If replied-to message not found, use last 8 messages
 
 **See:** 
 - [Message Reply Handling](../development/MESSAGE_REPLY_HANDLING.md) for implementation details

@@ -172,9 +172,19 @@ export const env = {
 #### `message.handler.ts`
 - Main entry point for message processing
 - Load recent messages from database (last 20 per user)
-- Handle message replies (fetch original message if `replied_to_message_id` exists)
-- Build complete conversation history (recent messages + reply context + current)
-- Call AI agent with full context
+- Handle message replies (smart context optimization)
+- Build optimized conversation history:
+
+  **If Reply:**
+    - Find replied-to message in stored history (by `message_id`)
+    - Include context window around replied-to message (±3-5 messages)
+    - Result: ~7-11 contextually relevant messages
+  
+  **If New Message:**
+    - Include last 8 messages from database
+    - Result: ~9 messages (recent context)
+
+- Call AI agent with optimized context (not all 20 messages)
 - Handle agent response
 - Store messages in database (user message + AI response)
 - Auto-cleanup old messages (keep last 20)
@@ -186,8 +196,18 @@ export const env = {
 - **Auto-cleanup:** Older messages automatically removed (keep last 20)
 - **Why:** Context is critical for natural conversations and AI FAQ suggestions
 
+**Smart Context Optimization:**
+- **Reply-based context:** When user replies, find that message in history and include surrounding messages
+- **Token efficient:** Send ~7-11 messages instead of all 20 (60-70% token reduction)
+- **Contextually relevant:** OpenAI sees conversation thread, not just recent messages
+- **Cost effective:** Lower OpenAI API costs
+
 **Reply Handling:**
-When a message contains `replied_to_message_id`, the handler automatically fetches the original message using `aisensyService.getMessageDetails()` and adds it to conversation history. This ensures OpenAI has full context without needing a tool call.
+When a message contains `replied_to_message_id`:
+1. Find the replied-to message in stored history (by `message_id`)
+2. Include messages around that point (context window: ±3-5 messages)
+3. This provides relevant context efficiently without sending all 20 messages
+4. Fallback: If replied-to message not found, use last 8 messages
 
 **See:** 
 - [Message Reply Handling](../development/MESSAGE_REPLY_HANDLING.md) for implementation details

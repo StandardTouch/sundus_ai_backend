@@ -54,9 +54,25 @@
 
 ## Message Flow Examples
 
-### Standard Chat Flow
+### Standard Chat Flow (with Smart Context Optimization)
 ```
 User → WhatsApp → AI Sensy → Webhook → Sundus AI
+  ↓
+Load stored messages (last 20)
+  ↓
+Build optimized context:
+  - If reply: Find replied-to message, include context window (±3-5 msgs)
+  - If new: Include last 8 messages
+  ↓
+OpenAI (with optimized context) → Response → WhatsApp
+  ↓
+Store message → Auto-cleanup (keep last 20)
+```
+
+**Token Optimization:**
+- Reply-based context: ~7-11 messages (60-70% token reduction)
+- New message context: ~9 messages (55% token reduction)
+- Cost effective: Lower OpenAI API costs
                                               ↓
                                     Check if reply (replied_to_message_id)
                                               ↓

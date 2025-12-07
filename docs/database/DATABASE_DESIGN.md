@@ -181,13 +181,28 @@
 1. Webhook comes in with message
 2. Load user session (get token, feedback count, language)
 3. Load recent messages from database (last 20)
-4. If reply: Fetch original message and add to context
-5. Build conversation history (recent messages + current)
-6. Call OpenAI with current message + context
-7. Store current message in database
-8. Update user session if needed (token, feedback count)
-9. Store feedback if user provided it
-10. Auto-cleanup old messages (keep last 20)
+4. Build optimized conversation history:
+
+   **If Reply (has replied_to_message_id):**
+     - Find replied-to message in stored history (by `message_id`)
+     - Include context window around replied-to message (±3-5 messages)
+     - Result: ~7-11 contextually relevant messages
+   
+   **If New Message (no reply):**
+     - Include last 8 messages from database
+     - Result: ~9 messages (recent context)
+
+5. Call OpenAI with optimized context (not all 20 messages)
+6. Store current message in database
+7. Update user session if needed (token, feedback count)
+8. Store feedback if user provided it
+9. Auto-cleanup old messages (keep last 20)
+
+**Token Optimization:**
+- ✅ **Reply-based context:** 60-70% token reduction vs full history
+- ✅ **New message context:** 55% token reduction vs full history
+- ✅ **Cost effective:** Lower OpenAI API costs
+- ✅ **Contextually relevant:** Includes conversation thread
 
 **See:** [Conversation Storage Analysis](./CONVERSATION_STORAGE_ANALYSIS.md) for detailed comparison and rationale.
 

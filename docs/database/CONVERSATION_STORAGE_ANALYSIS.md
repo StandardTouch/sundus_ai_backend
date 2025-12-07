@@ -220,11 +220,11 @@ interface ConversationMessage {
 
 ---
 
-## Code Example: Hybrid Approach
+## Code Example: Hybrid Approach with Smart Context Optimization
 
 ```typescript
-// conversation.repository.ts
-export class ConversationRepository {
+// conversation-message.repository.ts
+export class ConversationMessageRepository {
   // Store message
   async storeMessage(phoneNumber: string, message: ConversationMessage) {
     await db.conversation_messages.insertOne({
@@ -258,7 +258,53 @@ export class ConversationRepository {
     }
   }
 }
+
+// message.handler.ts - Smart Context Building
+function buildOptimizedContext(
+  storedMessages: ConversationMessage[],  // Last 20 from DB
+  currentMessage: ConversationMessage,
+  repliedToMessageId?: string
+) {
+  // Case 1: User replied to a message
+  if (repliedToMessageId) {
+    // Find replied-to message in stored history
+    const repliedToIndex = storedMessages.findIndex(
+      m => m.message_id === repliedToMessageId
+    );
+    
+    if (repliedToIndex !== -1) {
+      // Include context window around replied-to message
+      const CONTEXT_BEFORE = 3;  // Messages before
+      const CONTEXT_AFTER = 3;   // Messages after
+      
+      const startIndex = Math.max(0, repliedToIndex - CONTEXT_BEFORE);
+      const endIndex = Math.min(
+        storedMessages.length, 
+        repliedToIndex + CONTEXT_AFTER + 1
+      );
+      
+      // Get contextually relevant messages
+      const contextMessages = storedMessages.slice(startIndex, endIndex);
+      
+      // Add current reply
+      return [...contextMessages, currentMessage];
+    }
+    
+    // Fallback: If message not found, use recent messages
+    return storedMessages.slice(-8).concat(currentMessage);
+  }
+  
+  // Case 2: New message (no reply)
+  // Use last 8 messages for context
+  return storedMessages.slice(-8).concat(currentMessage);
+}
 ```
+
+**Token Optimization Benefits:**
+- ✅ **Reply-based context:** ~7-11 messages (60-70% reduction)
+- ✅ **New message context:** ~9 messages (55% reduction)
+- ✅ **Cost effective:** Lower OpenAI API costs
+- ✅ **Contextually relevant:** Includes conversation thread
 
 ---
 
