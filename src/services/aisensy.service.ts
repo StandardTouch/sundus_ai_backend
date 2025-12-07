@@ -50,10 +50,10 @@ export class AISensyService {
       { text: "No", payload: "feedback_no" },
     ];
 
-    const feedbackResult = await this.api.sendQuickReply(
+    const feedbackResult = await this.api.sendInteractive(
       phoneNumber,
       "Was this helpful?",
-      feedbackButtons
+      feedbackButtons.map(btn => ({ id: btn.payload, title: btn.text }))
     );
 
     return feedbackResult;

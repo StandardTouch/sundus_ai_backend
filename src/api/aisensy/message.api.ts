@@ -3,7 +3,8 @@
  * Low-level HTTP client for sending messages via AI Sensy
  */
 
-import axios, { AxiosInstance } from "axios";
+import axios from "axios";
+import type { AxiosInstance } from "axios";
 import type {
   MessageRequest,
   AISensyResponse,
@@ -64,8 +65,8 @@ export class AISensyMessageAPI {
 
       return {
         success: true,
-        message_id: apiResponse.messages?.[0]?.id,
-        wa_id: apiResponse.contacts?.[0]?.wa_id,
+        ...(apiResponse.messages?.[0]?.id && { message_id: apiResponse.messages[0].id }),
+        ...(apiResponse.contacts?.[0]?.wa_id && { wa_id: apiResponse.contacts[0].wa_id }),
         status: response.status,
       };
     } catch (error: any) {
@@ -108,7 +109,7 @@ export class AISensyMessageAPI {
       recipient_type: "individual",
       image: {
         link: imageUrl,
-        caption,
+        ...(caption && { caption }),
       },
     });
   }
@@ -145,8 +146,8 @@ export class AISensyMessageAPI {
       recipient_type: "individual",
       document: {
         link: documentUrl,
-        filename,
-        caption,
+        ...(filename && { filename }),
+        ...(caption && { caption }),
       },
     });
   }
