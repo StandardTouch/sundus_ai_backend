@@ -100,6 +100,19 @@ async function createIndexes(): Promise<void> {
     await faqsCollection.createIndex({ status: 1 });
     await faqsCollection.createIndex({ is_active: 1 });
 
+    // Password reset OTPs collection indexes
+    const passwordResetOTPsCollection = db.collection("password_reset_otps");
+    await passwordResetOTPsCollection.createIndex({ email: 1, is_used: 1, is_expired: 1 });
+    await passwordResetOTPsCollection.createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 }); // TTL index
+    await passwordResetOTPsCollection.createIndex({ created_at: 1 });
+
+    // Password reset tokens collection indexes
+    const passwordResetTokensCollection = db.collection("password_reset_tokens");
+    await passwordResetTokensCollection.createIndex({ token_lookup: 1 }, { unique: true });
+    await passwordResetTokensCollection.createIndex({ email: 1, is_used: 1, is_expired: 1 });
+    await passwordResetTokensCollection.createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 }); // TTL index
+    await passwordResetTokensCollection.createIndex({ created_at: 1 });
+
     logger.info("Database indexes created successfully");
   } catch (error) {
     logger.error("Error creating indexes", { error });

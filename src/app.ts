@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import { logger } from "./utils/logger.js";
 import { loggingMiddleware } from "./middleware/logging.middleware.js";
 import { connectDatabase, closeDatabase } from "./config/database.js";
+import { cleanupService } from "./services/cleanup.service.js";
 
 // Routes
 import authRoutes from "./auth/auth.routes.js";
@@ -32,11 +33,21 @@ app.get("/health", (req: Request, res: Response) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+// Store cleanup interval for graceful shutdown
+let cleanupInterval: NodeJS.Timeout | null = null;
+
 // Initialize database and start server
 async function startServer() {
   try {
     // Connect to MongoDB
     await connectDatabase();
+
+    // Run initial cleanup of expired OTPs and tokens
+    logger.info("Running initial cleanup of expired OTPs and tokens...");
+    await cleanupService.cleanupExpired();
+
+    // Start periodic cleanup (runs every hour)
+    cleanupInterval = cleanupService.startPeriodicCleanup();
 
     // Start server
 app.listen(PORT, () => {
@@ -54,12 +65,18 @@ app.listen(PORT, () => {
 // Graceful shutdown
 process.on("SIGINT", async () => {
   logger.info("Shutting down gracefully...");
+  if (cleanupInterval) {
+    cleanupService.stopPeriodicCleanup(cleanupInterval);
+  }
   await closeDatabase();
   process.exit(0);
 });
 
 process.on("SIGTERM", async () => {
   logger.info("Shutting down gracefully...");
+  if (cleanupInterval) {
+    cleanupService.stopPeriodicCleanup(cleanupInterval);
+  }
   await closeDatabase();
   process.exit(0);
 });
