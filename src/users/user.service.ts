@@ -12,12 +12,18 @@ const BCRYPT_ROUNDS = 10;
 
 export class UserService {
   /**
-   * Get all users (paginated)
+   * Get all users (paginated with search and filters)
    */
   async getAllUsers(
     page: number,
     limit: number,
-    filters: { role?: string; is_active?: boolean }
+    filters: {
+      role?: string;
+      is_active?: boolean;
+      search?: string;
+      sort_by?: string;
+      sort_order?: "asc" | "desc";
+    }
   ): Promise<{
     users: UserResponse[];
     pagination: {

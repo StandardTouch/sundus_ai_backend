@@ -67,24 +67,53 @@ export class UserRepository {
   }
 
   /**
-   * Find all users (paginated)
+   * Find all users (paginated with search and filters)
    */
   async findAll(
     skip: number,
     limit: number,
-    filters: { role?: string; is_active?: boolean }
+    filters: {
+      role?: string;
+      is_active?: boolean;
+      search?: string;
+      sort_by?: string;
+      sort_order?: "asc" | "desc";
+    }
   ): Promise<{ users: User[]; total: number }> {
     try {
       const query: any = {};
-      if (filters.role) query.role = filters.role;
-      if (filters.is_active !== undefined) query.is_active = filters.is_active;
+      
+      // Role filter
+      if (filters.role) {
+        query.role = filters.role;
+      }
+      
+      // Active status filter
+      if (filters.is_active !== undefined) {
+        query.is_active = filters.is_active;
+      }
+      
+      // Search filter (searches in username, email, and full_name)
+      if (filters.search && filters.search.trim()) {
+        const searchRegex = { $regex: filters.search.trim(), $options: "i" };
+        query.$or = [
+          { username: searchRegex },
+          { email: searchRegex },
+          { full_name: searchRegex }
+        ];
+      }
+
+      // Sort configuration
+      const sortField = filters.sort_by || "created_at";
+      const sortOrder = filters.sort_order === "asc" ? 1 : -1;
+      const sort: any = { [sortField]: sortOrder };
 
       const [users, total] = await Promise.all([
         this.getCollection()
           .find(query)
           .skip(skip)
           .limit(limit)
-          .sort({ created_at: -1 })
+          .sort(sort)
           .toArray(),
         this.getCollection().countDocuments(query)
       ]);
