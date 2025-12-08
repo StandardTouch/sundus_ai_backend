@@ -11,7 +11,7 @@ This module handles sending WhatsApp messages via AI Sensy API.
 **Headers:**
 - `Accept: application/json`
 - `Content-Type: application/json`
-- `X-AiSensy-Partner-API-Key: {apiKey}`
+- `X-AiSensy-Project-API-Pwd: {apiKey}`
 
 ## Usage
 

@@ -17,8 +17,8 @@ export const aisensyConfig = {
   apiBaseUrl: process.env.AISENSY_API_BASE_URL || "https://apis.aisensy.com",
 
   /**
-   * AI Sensy Partner API Key
-   * Used in X-AiSensy-Partner-API-Key header
+   * AI Sensy Project API Password
+   * Used in X-AiSensy-Project-API-Pwd header
    */
   apiKey: process.env.AISENSY_API_KEY || "",
 

@@ -31,7 +31,7 @@ export class AISensyMessageAPI {
       headers: {
         "Accept": "application/json",
         "Content-Type": "application/json",
-        "X-AiSensy-Partner-API-Key": aisensyConfig.apiKey,
+        "X-AiSensy-Project-API-Pwd": aisensyConfig.apiKey,
       },
     });
   }
