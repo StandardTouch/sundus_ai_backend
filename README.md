@@ -2,6 +2,8 @@
 
 AI-powered WhatsApp chatbot for Alhomaidhi Group, built with TypeScript, OpenAI, and AI Sensy.
 
+## Node Version - 24
+
 ## 🚀 Quick Start
 
 1. **Install dependencies:**
