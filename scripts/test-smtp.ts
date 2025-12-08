@@ -12,7 +12,7 @@
 import nodemailer from "nodemailer";
 
 const SMTP_EMAIL = "info@alhomaidhi.com";
-const SMTP_APP_PASSWORD = "sywh bxwp ochr pexh"; // App password for "email alhomaidhi"
+const SMTP_APP_PASSWORD = "xxxx xxxx xxxx xxxx"; // App password for "email alhomaidhi"
 const TEST_RECIPIENT = "yaseen@standardtouch.com"; // Send test email to this address
 
 // Gmail/Google Workspace SMTP configuration
