@@ -73,7 +73,8 @@ async function createAdmin() {
     const adminUser = await userRepository.create({
       username: ADMIN_USERNAME,
       email: ADMIN_EMAIL,
-      password_hash,
+      password: ADMIN_PASSWORD, // Required by CreateUserDto type
+      password_hash, // Actual hashed password for storage
       full_name: ADMIN_FULL_NAME,
       role: "admin",
       is_active: true
