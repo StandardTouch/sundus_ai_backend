@@ -4,7 +4,7 @@
  */
 
 import type { Request, Response, NextFunction } from "express";
-import { authService } from "../auth/auth.service.js";
+import { authService } from "../auth/services/auth.service.js";
 import { logger } from "../utils/logger.js";
 
 /**

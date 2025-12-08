@@ -36,8 +36,8 @@
  */
 
 import type { Request, Response } from "express";
-import { logger } from "../utils/logger.js";
-import { otpService } from "./otp.service.js";
+import { logger } from "../../utils/logger.js";
+import { otpService } from "../services/otp.service.js";
 
 export async function verifyOTPController(req: Request, res: Response): Promise<void> {
   try {

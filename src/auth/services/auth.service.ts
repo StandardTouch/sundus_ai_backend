@@ -5,9 +5,9 @@
 
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { userRepository } from "../repositories/user.repository.js";
-import type { LoginResponse, UserResponse } from "../models/user.model.js";
-import { logger } from "../utils/logger.js";
+import { userRepository } from "../../repositories/user.repository.js";
+import type { LoginResponse, UserResponse } from "../../models/user.model.js";
+import { logger } from "../../utils/logger.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "8h";
@@ -80,9 +80,9 @@ export class AuthService {
         role: user.role,
         is_active: user.is_active,
         last_login_at: new Date(),
-        created_by: user.created_by,
         created_at: user.created_at,
-        updated_at: new Date()
+        updated_at: new Date(),
+        ...(user.created_by && { created_by: user.created_by })
       };
 
       return {

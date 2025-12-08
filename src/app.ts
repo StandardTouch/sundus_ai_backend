@@ -7,7 +7,7 @@ import { connectDatabase, closeDatabase } from "./config/database.js";
 import { cleanupService } from "./services/cleanup.service.js";
 
 // Routes
-import authRoutes from "./auth/auth.routes.js";
+import authRoutes from "./auth/routes/auth.routes.js";
 import userRoutes from "./users/user.routes.js";
 
 dotenv.config();

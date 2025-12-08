@@ -5,8 +5,8 @@
 
 import crypto from "crypto";
 import bcrypt from "bcrypt";
-import { passwordResetTokenRepository } from "../repositories/password-reset-token.repository.js";
-import { logger } from "../utils/logger.js";
+import { passwordResetTokenRepository } from "../../repositories/password-reset-token.repository.js";
+import { logger } from "../../utils/logger.js";
 
 const RESET_TOKEN_EXPIRY_MINUTES = 30; // Reset token expires in 30 minutes
 const BCRYPT_ROUNDS = 10;
@@ -63,14 +63,20 @@ export class PasswordResetTokenService {
       expiresAt.setMinutes(expiresAt.getMinutes() + RESET_TOKEN_EXPIRY_MINUTES);
 
       // Store token
-      await passwordResetTokenRepository.create({
+      const createData: any = {
         email,
         user_id: userId,
         token_lookup: tokenLookup,
         token_hash: tokenHash,
         expires_at: expiresAt,
-        ip_address: ipAddress,
-      });
+      };
+      
+      // Only include ip_address if it's defined
+      if (ipAddress) {
+        createData.ip_address = ipAddress;
+      }
+
+      await passwordResetTokenRepository.create(createData);
 
       logger.info("Password reset token created", {
         email,

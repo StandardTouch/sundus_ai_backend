@@ -5,9 +5,9 @@
 
 import crypto from "crypto";
 import bcrypt from "bcrypt";
-import { passwordResetOTPRepository } from "../repositories/password-reset-otp.repository.js";
+import { passwordResetOTPRepository } from "../../repositories/password-reset-otp.repository.js";
 import { passwordResetTokenService } from "./password-reset-token.service.js";
-import { logger } from "../utils/logger.js";
+import { logger } from "../../utils/logger.js";
 
 const OTP_LENGTH = 6;
 const OTP_EXPIRY_MINUTES = 10; // OTP expires in 10 minutes
@@ -57,14 +57,20 @@ export class OTPService {
       expiresAt.setMinutes(expiresAt.getMinutes() + OTP_EXPIRY_MINUTES);
 
       // Store OTP
-      await passwordResetOTPRepository.create({
+      const createData: any = {
         email,
         user_id: userId,
         otp_code: otp,
         otp_hash: otpHash,
         expires_at: expiresAt,
-        ip_address: ipAddress,
-      });
+      };
+      
+      // Only include ip_address if it's defined
+      if (ipAddress) {
+        createData.ip_address = ipAddress;
+      }
+
+      await passwordResetOTPRepository.create(createData);
 
       logger.info("Password reset OTP created", {
         email,

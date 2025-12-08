@@ -3,13 +3,13 @@
  */
 
 import { Router } from "express";
-import { loginController } from "./login.controller.js";
-import { meController } from "./me.controller.js";
-import { logoutController } from "./logout.controller.js";
-import { forgotPasswordController } from "./forgot-password.controller.js";
-import { verifyOTPController } from "./verify-otp.controller.js";
-import { resetPasswordController } from "./reset-password.controller.js";
-import { authenticate } from "../middleware/auth.middleware.js";
+import { loginController } from "../controllers/login.controller.js";
+import { meController } from "../controllers/me.controller.js";
+import { logoutController } from "../controllers/logout.controller.js";
+import { forgotPasswordController } from "../controllers/forgot-password.controller.js";
+import { verifyOTPController } from "../controllers/verify-otp.controller.js";
+import { resetPasswordController } from "../controllers/reset-password.controller.js";
+import { authenticate } from "../../middleware/auth.middleware.js";
 
 const router = Router();
 

@@ -33,11 +33,11 @@
  */
 
 import type { Request, Response } from "express";
-import { logger } from "../utils/logger.js";
-import { userRepository } from "../repositories/user.repository.js";
-import { otpService } from "./otp.service.js";
-import { sendHtmlEmail, sendTextEmail } from "../utils/email.util.js";
-import { generateOTPEmailTemplate, generateOTPEmailText } from "../templates/email/otp-email.template.js";
+import { logger } from "../../utils/logger.js";
+import { userRepository } from "../../repositories/user.repository.js";
+import { otpService } from "../services/otp.service.js";
+import { sendHtmlEmail, sendTextEmail } from "../../utils/email.util.js";
+import { generateOTPEmailTemplate, generateOTPEmailText } from "../../templates/email/otp-email.template.js";
 
 export async function forgotPasswordController(req: Request, res: Response): Promise<void> {
   try {

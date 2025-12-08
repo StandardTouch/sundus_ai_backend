@@ -47,9 +47,9 @@
  */
 
 import type { Request, Response } from "express";
-import { logger } from "../utils/logger.js";
-import { authService } from "./auth.service.js";
-import type { LoginDto } from "../models/user.model.js";
+import { logger } from "../../utils/logger.js";
+import { authService } from "../services/auth.service.js";
+import type { LoginDto } from "../../models/user.model.js";
 
 export async function loginController(req: Request, res: Response): Promise<void> {
   try {
