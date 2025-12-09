@@ -48,6 +48,15 @@ export async function deleteUserController(req: Request, res: Response): Promise
     const { id } = req.params;
     const currentUser = (req as any).user;
 
+    // Validate user ID
+    if (!id) {
+      res.status(400).json({
+        success: false,
+        error: "User ID is required"
+      });
+      return;
+    }
+
     // Prevent self-deletion
     if (id === currentUser._id) {
       res.status(400).json({
