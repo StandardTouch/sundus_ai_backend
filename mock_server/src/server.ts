@@ -41,7 +41,7 @@ app.get("/", (req: Request, res: Response) => {
  */
 app.get("/health", (req: Request, res: Response) => {
   res.json({
-    status: "healthy",
+    status: "healthy healthy server is running",
     timestamp: new Date().toISOString(),
     targetUrl: webhookSender.getTargetUrl(),
   });
