@@ -41,7 +41,7 @@ app.post("/", (req: Request, res: Response) => {
 });
 
 app.get("/health", (req: Request, res: Response) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+  res.json({ status: "healthy healthy server is running", timestamp: new Date().toISOString() });
 });
 
 // Store cleanup interval for graceful shutdown
