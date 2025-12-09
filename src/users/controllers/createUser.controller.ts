@@ -63,9 +63,9 @@
  */
 
 import type { Request, Response } from "express";
-import { logger } from "../utils/logger.js";
-import { userService } from "./user.service.js";
-import type { CreateUserDto } from "../models/user.model.js";
+import { logger } from "../../utils/logger.js";
+import { userService } from "../services/user.service.js";
+import type { CreateUserDto } from "../../models/user.model.js";
 
 export async function createUserController(req: Request, res: Response): Promise<void> {
   try {

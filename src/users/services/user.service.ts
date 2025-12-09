@@ -4,9 +4,9 @@
  */
 
 import bcrypt from "bcrypt";
-import { userRepository } from "../repositories/user.repository.js";
-import type { CreateUserDto, UpdateUserDto, UserResponse } from "../models/user.model.js";
-import { logger } from "../utils/logger.js";
+import { userRepository } from "../../repositories/user.repository.js";
+import type { CreateUserDto, UpdateUserDto, UserResponse } from "../../models/user.model.js";
+import { logger } from "../../utils/logger.js";
 
 const BCRYPT_ROUNDS = 10;
 

@@ -81,8 +81,8 @@
  */
 
 import type { Request, Response } from "express";
-import { logger } from "../utils/logger.js";
-import { userService } from "./user.service.js";
+import { logger } from "../../utils/logger.js";
+import { userService } from "../services/user.service.js";
 
 export async function getAllUsersController(req: Request, res: Response): Promise<void> {
   try {

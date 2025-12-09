@@ -4,12 +4,12 @@
  */
 
 import { Router } from "express";
-import { getAllUsersController } from "./getAllUsers.controller.js";
-import { getUserByIdController } from "./getUserById.controller.js";
-import { createUserController } from "./createUser.controller.js";
-import { updateUserController } from "./updateUser.controller.js";
-import { deleteUserController } from "./deleteUser.controller.js";
-import { authenticate, requireAdmin } from "../middleware/auth.middleware.js";
+import { getAllUsersController } from "../controllers/getAllUsers.controller.js";
+import { getUserByIdController } from "../controllers/getUserById.controller.js";
+import { createUserController } from "../controllers/createUser.controller.js";
+import { updateUserController } from "../controllers/updateUser.controller.js";
+import { deleteUserController } from "../controllers/deleteUser.controller.js";
+import { authenticate, requireAdmin } from "../../middleware/auth.middleware.js";
 
 const router = Router();
 

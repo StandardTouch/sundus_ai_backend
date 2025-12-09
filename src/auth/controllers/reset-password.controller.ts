@@ -49,7 +49,7 @@ import type { Request, Response } from "express";
 import { logger } from "../../utils/logger.js";
 import { userRepository } from "../../repositories/user.repository.js";
 import { passwordResetTokenService } from "../services/password-reset-token.service.js";
-import { userService } from "../../users/user.service.js";
+import { userService } from "../../users/services/user.service.js";
 
 export async function resetPasswordController(req: Request, res: Response): Promise<void> {
   try {

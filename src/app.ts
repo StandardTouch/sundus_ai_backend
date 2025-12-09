@@ -9,7 +9,7 @@ import { cleanupService } from "./services/cleanup.service.js";
 
 // Routes
 import authRoutes from "./auth/routes/auth.routes.js";
-import userRoutes from "./users/user.routes.js";
+import userRoutes from "./users/routes/user.routes.js";
 
 dotenv.config();
 
