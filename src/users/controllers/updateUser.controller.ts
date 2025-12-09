@@ -72,6 +72,15 @@ export async function updateUserController(req: Request, res: Response): Promise
     const { id } = req.params;
     const updateData: UpdateUserDto = req.body;
 
+    // Validate user ID
+    if (!id) {
+      res.status(400).json({
+        success: false,
+        error: "User ID is required"
+      });
+      return;
+    }
+
     // Validate role if provided
     if (updateData.role && !["admin", "customer_support"].includes(updateData.role)) {
       res.status(400).json({

@@ -11,7 +11,7 @@
  *   "email": "support1@example.com",
  *   "password": "securePassword123",
  *   "full_name": "Support User",
- *   "role": "customer_support",
+ *   "role": "customer_support",  // Options: "admin" | "customer_support"
  *   "is_active": true
  * }
  * 
@@ -42,6 +42,10 @@
  *   "success": false,
  *   "error": "Invalid role. Must be 'admin' or 'customer_support'"
  * }
+ * 
+ * Role Options:
+ * - "admin": Full access to all features
+ * - "customer_support": Access to FAQ management and smart FAQ suggestions
  * 
  * Error Response (400):
  * {
