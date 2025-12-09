@@ -1,0 +1,38 @@
+steps:
+  # Step 1: Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      [
+        'build',
+        '-t',
+        'us-central1-docker.pkg.dev/$PROJECT_ID/sundus-backend-docker/whatsapp-bot:$SHORT_SHA',
+        '.'
+      ]
+
+  # Step 2: Push the image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      [
+        'push',
+        'us-central1-docker.pkg.dev/$PROJECT_ID/sundus-backend-docker/whatsapp-bot:$SHORT_SHA'
+      ]
+
+  # Step 3: Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      [
+        'run',
+        'deploy',
+        'sundus-backend',
+        '--image',
+        'us-central1-docker.pkg.dev/$PROJECT_ID/sundus-backend-docker/whatsapp-bot:$SHORT_SHA',
+        '--region',
+        'us-central1',
+        '--platform',
+        'managed',
+        '--allow-unauthenticated'
+      ]
+
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/sundus-backend-docker/whatsapp-bot:$SHORT_SHA'
