@@ -10,6 +10,7 @@ import { TimingTracker } from "../../../utils/timing.util.js";
 import type { ProcessingResult } from "../../../utils/timing.util.js";
 import type { ConversationMessage } from "../../../models/conversation-message.model.js";
 import { logger } from "../../../utils/logger.js";
+import { processGuardrails } from "../../../guardrails/index.js";
 
 /**
  * System prompt for the AI assistant
@@ -43,16 +44,47 @@ export class TextMessageHandler extends BaseMessageHandler {
     tracker.addEvent("Text content extracted");
     logger.info("Received TEXT message", { phoneNumber, text });
 
+    // Apply guardrails
+    tracker.addEvent("Applying guardrails");
+    const guardrailResult = await processGuardrails(text);
+    
+    if (!guardrailResult.passed) {
+      logger.warn("Guardrails blocked message", {
+        phoneNumber,
+        reason: guardrailResult.error,
+        injectionDetected: guardrailResult.injectionDetected,
+        contentFlagged: guardrailResult.contentFlagged
+      });
+      
+      // Send safe response
+      const safeResponse = guardrailResult.error || "I can't process that request. How else can I help you?";
+      await this.sendMessage(phoneNumber, safeResponse, tracker);
+      
+      return tracker.getResult();
+    }
+
+    // Use sanitized input if available
+    const sanitizedText = guardrailResult.sanitizedInput || text;
+    
+    if (guardrailResult.warnings && guardrailResult.warnings.length > 0) {
+      logger.info("Guardrail warnings", {
+        phoneNumber,
+        warnings: guardrailResult.warnings
+      });
+    }
+
+    tracker.addEvent("Guardrails passed");
+
     // Extract message ID and reply context
     const messageId = message.id || message.messageId;
     const repliedToMessageId = message.context?.id || message.replied_to_message_id;
 
-    // Store user message
+    // Store user message (store original, but process sanitized)
     tracker.addEvent("Storing user message");
     await conversationService.storeUserMessage(
       phoneNumber,
       messageId,
-      text,
+      sanitizedText,
       repliedToMessageId
     );
 
@@ -60,14 +92,14 @@ export class TextMessageHandler extends BaseMessageHandler {
     tracker.addEvent("Building conversation history");
     const conversationHistory = await conversationService.getConversationHistory(
       phoneNumber,
-      text,
+      sanitizedText,
       repliedToMessageId
     );
 
-    // Process with OpenAI
+    // Process with OpenAI (use sanitized input)
     tracker.addEvent("Processing with OpenAI");
     const openaiResult = await openaiService.generateResponse(
-      text,
+      sanitizedText,
       SYSTEM_PROMPT,
       conversationHistory,
       {
