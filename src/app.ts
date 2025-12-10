@@ -7,6 +7,7 @@ import { loggingMiddleware } from "./middleware/logging.middleware.js";
 import { connectDatabase, closeDatabase } from "./config/database.js";
 import { cleanupService } from "./services/cleanup.service.js";
 import { settingsService } from "./settings/services/settings.service.js";
+import { webhookHandlerService } from "./services/webhook.handler.service.js";
 
 // Routes
 import authRoutes from "./auth/routes/auth.routes.js";
@@ -56,8 +57,12 @@ app.post("/", async (req: Request, res: Response) => {
     // Webhook is enabled, process it
     logger.info("Received webhook payload", { body: req.body });
     
-    // TODO: Add webhook processing logic here
-    // For now, just acknowledge receipt
+    // Process webhook asynchronously (don't wait for response)
+    webhookHandlerService.processWebhook(req.body).catch((error) => {
+      logger.error("Error in webhook processing", { error });
+    });
+    
+    // Acknowledge receipt immediately (webhook processing happens in background)
     res.status(200).json({ 
       status: "ok", 
       message: "Webhook received and processing" 
