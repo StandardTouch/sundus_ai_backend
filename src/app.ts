@@ -6,19 +6,21 @@ import { logger } from "./utils/logger.js";
 import { loggingMiddleware } from "./middleware/logging.middleware.js";
 import { connectDatabase, closeDatabase } from "./config/database.js";
 import { cleanupService } from "./services/cleanup.service.js";
+import { settingsService } from "./settings/services/settings.service.js";
 
 // Routes
 import authRoutes from "./auth/routes/auth.routes.js";
 import userRoutes from "./users/routes/user.routes.js";
+import settingsRoutes from "./settings/routes/settings.routes.js";
 
 dotenv.config();
 
 const app: Application = express();
 const PORT = process.env.PORT || 3000;
 
-// CORS configuration
+// CORS configuration - Allow all origins
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || "http://localhost:5173",
+  origin: true, // Allow all origins
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
@@ -33,11 +35,40 @@ app.use(loggingMiddleware);
 // API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/settings", settingsRoutes);
 
-// Health check
-app.post("/", (req: Request, res: Response) => {
-  logger.info("Received webhook payload", { body: req.body });
-  res.send("🚀 WhatsApp Chatbot (TypeScript) is running!");
+// Webhook endpoint (from AI Sensy)
+app.post("/", async (req: Request, res: Response) => {
+  try {
+    // Check if webhook processing is enabled
+    const webhookActive = await settingsService.getWebhookActiveStatus();
+    
+    if (!webhookActive) {
+      // Webhook is disabled, just return 200 without processing
+      logger.info("Webhook received but processing is disabled", { body: req.body });
+      res.status(200).json({ 
+        status: "ok", 
+        message: "Webhook received but processing is disabled" 
+      });
+      return;
+    }
+
+    // Webhook is enabled, process it
+    logger.info("Received webhook payload", { body: req.body });
+    
+    // TODO: Add webhook processing logic here
+    // For now, just acknowledge receipt
+    res.status(200).json({ 
+      status: "ok", 
+      message: "Webhook received and processing" 
+    });
+  } catch (error) {
+    logger.error("Webhook handler error", { error });
+    res.status(200).json({ 
+      status: "ok", 
+      message: "Webhook received" 
+    });
+  }
 });
 
 app.get("/health", (req: Request, res: Response) => {

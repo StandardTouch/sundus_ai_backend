@@ -17,9 +17,9 @@ sundus_ai_backend/
 │   ├── app.ts                          # Express server entry point
 │   ├── config/
 │   │   ├── index.ts                    # Configuration management
-│   │   ├── openai.ts                   # OpenAI client configuration
-│   │   ├── database.ts                 # Database connection
-│   │   └── env.ts                      # Environment variables validation
+│   │   ├── database.ts                 # Database connection & indexes
+│   │   ├── aisensy.config.ts           # AI Sensy API configuration
+│   │   └── smtp.config.ts             # SMTP email configuration
 │   ├── handlers/
 │   │   ├── webhook.handler.ts          # Webhook reception & parsing
 │   │   └── message.handler.ts          # Main message processing entry
@@ -37,63 +37,88 @@ sundus_ai_backend/
 │   │       ├── order.executor.ts       # Order tool execution
 │   │       ├── faq.executor.ts         # FAQ tool execution
 │   │       └── brand.executor.ts      # Brand tool execution
+│   ├── auth/                           # Authentication module
+│   │   ├── controllers/                # One file per endpoint
+│   │   │   ├── login.controller.ts     # POST /api/auth/login
+│   │   │   ├── me.controller.ts        # GET /api/auth/me
+│   │   │   ├── logout.controller.ts    # POST /api/auth/logout
+│   │   │   ├── forgot-password.controller.ts  # POST /api/auth/forgot-password
+│   │   │   ├── verify-otp.controller.ts        # POST /api/auth/verify-otp
+│   │   │   └── reset-password.controller.ts     # POST /api/auth/reset-password
+│   │   ├── services/                   # Business logic
+│   │   │   ├── auth.service.ts         # Authentication logic
+│   │   │   ├── otp.service.ts         # OTP generation & verification
+│   │   │   └── password-reset-token.service.ts  # Password reset tokens
+│   │   ├── routes/
+│   │   │   └── auth.routes.ts          # Auth route definitions
+│   │   └── index.ts                   # Module exports
+│   ├── users/                          # User management module
+│   │   ├── controllers/                # One file per endpoint
+│   │   │   ├── getAllUsers.controller.ts    # GET /api/users
+│   │   │   ├── getUserById.controller.ts    # GET /api/users/:id
+│   │   │   ├── createUser.controller.ts     # POST /api/users
+│   │   │   ├── updateUser.controller.ts      # PUT /api/users/:id
+│   │   │   └── deleteUser.controller.ts     # DELETE /api/users/:id
+│   │   ├── services/
+│   │   │   └── user.service.ts         # User management business logic
+│   │   ├── routes/
+│   │   │   └── user.routes.ts          # User route definitions
+│   │   └── index.ts                   # Module exports
+│   ├── settings/                       # Settings management module
+│   │   ├── controllers/                # One file per endpoint
+│   │   │   ├── getWebhookStatus.controller.ts   # GET /api/settings/webhook/status
+│   │   │   └── toggleWebhookStatus.controller.ts # POST /api/settings/webhook/toggle
+│   │   ├── services/
+│   │   │   └── settings.service.ts     # Settings business logic
+│   │   ├── routes/
+│   │   │   └── settings.routes.ts     # Settings route definitions
+│   │   └── index.ts                   # Module exports
 │   ├── services/
-│   │   ├── openai.service.ts           # OpenAI API wrapper
 │   │   ├── aisensy.service.ts          # AI Sensy API wrapper
-│   │   ├── alhomaidhi.service.ts       # Alhomaidhi API wrapper
-│   │   ├── vector.service.ts           # Vector DB service
-│   │   └── conversation.service.ts    # Conversation state management
+│   │   └── cleanup.service.ts          # Periodic cleanup service
 │   ├── api/
-│   │   ├── alhomaidhi/
-│   │   │   ├── auth.api.ts             # Authentication APIs (OTP)
-│   │   │   ├── product.api.ts          # Product APIs
-│   │   │   ├── order.api.ts            # Order APIs
-│   │   │   └── brand.api.ts           # Brand APIs
 │   │   └── aisensy/
 │   │       ├── message.api.ts          # Send message API
-│   │       └── webhook.api.ts          # Webhook types
+│   │       └── index.ts               # API exports
 │   ├── models/
+│   │   ├── user.model.ts               # User data model
 │   │   ├── user-session.model.ts       # User session data model
 │   │   ├── conversation-message.model.ts  # Message data model (for storage)
 │   │   ├── feedback.model.ts           # Feedback data model
-│   │   └── faq.model.ts                # FAQ data model
+│   │   ├── faq.model.ts                # FAQ data model
+│   │   ├── password-reset-otp.model.ts # Password reset OTP model
+│   │   ├── password-reset-token.model.ts # Password reset token model
+│   │   └── settings.model.ts          # Settings model
 │   ├── repositories/
-│   │   ├── user-session.repository.ts      # User session DB operations
-│   │   ├── conversation-message.repository.ts  # Message storage (last 20 per user)
-│   │   ├── feedback.repository.ts          # Feedback DB operations
-│   │   └── faq.repository.ts               # FAQ DB operations
-│   ├── guardrails/
-│   │   ├── index.ts                    # Main guardrails orchestrator
-│   │   ├── content.moderation.ts       # Content moderation
-│   │   ├── prompt.injection.ts         # Prompt injection prevention
-│   │   ├── tool.validation.ts          # Tool call validation
-│   │   ├── input.validation.ts         # Input validation
-│   │   ├── output.filtering.ts         # Output filtering
-│   │   ├── rate.limiting.ts            # Rate limiting
-│   │   ├── token.management.ts        # Token/context management
-│   │   ├── error.handling.ts           # Error handling guardrails
-│   │   └── auth.guardrails.ts         # Authentication guardrails
+│   │   ├── user.repository.ts          # User DB operations
+│   │   ├── password-reset-otp.repository.ts  # OTP DB operations
+│   │   ├── password-reset-token.repository.ts # Token DB operations
+│   │   └── settings.repository.ts      # Settings DB operations
+│   ├── middleware/
+│   │   ├── auth.middleware.ts          # JWT authentication & authorization
+│   │   └── logging.middleware.ts       # Request logging
 │   ├── utils/
 │   │   ├── logger.ts                   # Logging utility
-│   │   ├── validator.ts                # Input validation
-│   │   ├── formatter.ts                # Response formatting
+│   │   ├── email.util.ts               # Email sending utilities
 │   │   ├── phone.util.ts               # Phone number utilities
-│   │   └── error.util.ts               # Error handling utilities
-│   ├── middleware/
-│   │   ├── error.middleware.ts         # Error handling middleware
-│   │   ├── logger.middleware.ts        # Request logging
-│   │   └── validation.middleware.ts    # Request validation
-│   └── types/
-│       ├── webhook.types.ts            # Webhook payload types
-│       ├── message.types.ts            # Message types
-│       ├── tool.types.ts                # Tool function types
-│       └── api.types.ts                 # API response types
-├── docs/                                # Documentation
-├── tests/                               # Test files
-│   ├── unit/
-│   ├── integration/
-│   └── e2e/
-└── package.json
+│   │   └── message.formatter.ts       # Message formatting
+│   ├── templates/
+│   │   └── email/
+│   │       └── otp-email.template.ts  # Email templates
+│   ├── types/
+│   │   └── aisensy.types.ts            # AI Sensy types
+│   ├── scripts/                        # Utility scripts
+│   │   ├── create-admin.ts            # Create admin user script
+│   │   ├── init-webhook-setting.ts    # Initialize webhook setting
+│   │   └── test-smtp.ts               # SMTP test script
+│   ├── guardrails/                     # (Future) AI guardrails
+│   │   └── ...
+│   ├── docs/                           # Documentation
+│   ├── tests/                          # Test files
+│   │   ├── unit/
+│   │   ├── integration/
+│   │   └── e2e/
+│   └── package.json
 ```
 
 ---
@@ -656,6 +681,409 @@ Handler → Agent → Executor → Service → API Client → External API
 - Horizontal scaling (stateless design)
 - Easy to add new features
 - Clear extension points
+
+---
+
+## Coding Standards
+
+### Module Structure
+
+All feature modules (auth, users, settings) follow a consistent structure:
+
+```
+module-name/
+├── controllers/          # HTTP request handlers (one file per endpoint)
+├── services/            # Business logic layer
+├── routes/              # Route definitions
+└── index.ts            # Module exports
+```
+
+**Example:**
+```
+auth/
+├── controllers/
+│   ├── login.controller.ts
+│   ├── logout.controller.ts
+│   └── me.controller.ts
+├── services/
+│   └── auth.service.ts
+├── routes/
+│   └── auth.routes.ts
+└── index.ts
+```
+
+### Controller Standards
+
+**1. One File Per Endpoint**
+- Each controller file handles exactly one HTTP endpoint
+- File naming: `{action}{Resource}.controller.ts`
+- Example: `getAllUsers.controller.ts`, `createUser.controller.ts`
+
+**2. Request/Response Documentation**
+Every controller file must include comprehensive documentation at the top:
+
+```typescript
+/**
+ * GET /api/users
+ * Get all users (paginated with search and filters)
+ * 
+ * Headers:
+ * Authorization: Bearer <token> (admin only)
+ * 
+ * Query Parameters:
+ * - page: number (default: 1)
+ * - limit: number (default: 10, max: 100)
+ * - search: string (optional)
+ * 
+ * Example Request:
+ * GET /api/users?page=1&limit=20&search=admin
+ * 
+ * Success Response (200):
+ * {
+ *   "success": true,
+ *   "data": { ... }
+ * }
+ * 
+ * Error Response (400):
+ * {
+ *   "success": false,
+ *   "error": "Invalid request"
+ * }
+ */
+```
+
+**3. Controller Function Pattern**
+```typescript
+export async function controllerName(req: Request, res: Response): Promise<void> {
+  try {
+    // 1. Validate input
+    // 2. Call service
+    // 3. Return response
+    const result = await service.method();
+    
+    if (!result.success) {
+      res.status(result.statusCode || 500).json({
+        success: false,
+        error: result.error
+      });
+      return;
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: result.data
+    });
+  } catch (error) {
+    logger.error("Controller error", { error });
+    res.status(500).json({
+      success: false,
+      error: "Internal server error"
+    });
+  }
+}
+```
+
+### Service Layer Standards
+
+**1. Business Logic Only**
+- Services contain business logic, not HTTP concerns
+- Services return structured results: `{ success: boolean, data?: T, error?: string, statusCode?: number }`
+
+**2. Service Pattern**
+```typescript
+export class ServiceName {
+  async methodName(params: any): Promise<ServiceResult<DataType>> {
+    try {
+      // Business logic
+      // Call repository
+      const data = await repository.method();
+      
+      return {
+        success: true,
+        data: this.mapToResponse(data)
+      };
+    } catch (error) {
+      logger.error("Service error", { error });
+      return {
+        success: false,
+        error: "Error message",
+        statusCode: 500
+      };
+    }
+  }
+  
+  private mapToResponse(data: any): ResponseType {
+    // Map internal data to response format
+  }
+}
+```
+
+### Repository Layer Standards
+
+**1. Database Operations Only**
+- Repositories handle all database interactions
+- Use MongoDB collection methods
+- Handle ObjectId conversions
+
+**2. Repository Pattern**
+```typescript
+export class RepositoryName {
+  private getCollection() {
+    return getDatabase().collection<ModelType>("collection_name");
+  }
+  
+  async findById(id: string): Promise<ModelType | null> {
+    try {
+      const doc = await this.getCollection().findOne({ 
+        _id: toObjectId(id) as any 
+      });
+      if (!doc) return null;
+      
+      return {
+        ...doc,
+        _id: fromObjectId(doc._id as any)
+      } as ModelType;
+    } catch (error) {
+      logger.error("Repository error", { error });
+      return null;
+    }
+  }
+}
+```
+
+### Route Standards
+
+**1. Route Organization**
+- Routes defined in `routes/{module}.routes.ts`
+- Use Express Router
+- Apply middleware at route level
+
+**2. Route Pattern**
+```typescript
+import { Router } from "express";
+import { authenticate, requireAdmin } from "../../middleware/auth.middleware.js";
+import { controllerFunction } from "../controllers/controller.controller.js";
+
+const router = Router();
+
+// Apply middleware
+router.use(authenticate);
+router.use(requireAdmin); // If admin-only
+
+// Define routes
+router.get("/", controllerFunction);
+router.get("/:id", getByIdController);
+router.post("/", createController);
+
+export default router;
+```
+
+### Response Format Standards
+
+**All API responses follow this structure:**
+
+**Success Response:**
+```typescript
+{
+  "success": true,
+  "data": { ... },           // Response data
+  "message"?: string         // Optional success message
+}
+```
+
+**Error Response:**
+```typescript
+{
+  "success": false,
+  "error": "Error message"  // Human-readable error message
+}
+```
+
+**Pagination Response:**
+```typescript
+{
+  "success": true,
+  "data": {
+    "items": [...],
+    "pagination": {
+      "page": 1,
+      "limit": 10,
+      "total": 100,
+      "totalPages": 10
+    }
+  }
+}
+```
+
+### Error Handling Standards
+
+**1. Service Layer**
+- Services return `{ success: false, error: string, statusCode?: number }`
+- Never throw errors (except for unexpected errors)
+- Log all errors with context
+
+**2. Controller Layer**
+- Always use try-catch
+- Return appropriate HTTP status codes
+- Never expose internal error details to clients
+- Log errors with full context
+
+**3. Error Status Codes**
+- `400` - Bad Request (validation errors)
+- `401` - Unauthorized (authentication required)
+- `403` - Forbidden (insufficient permissions)
+- `404` - Not Found
+- `500` - Internal Server Error
+
+### Authentication & Authorization
+
+**1. Middleware Usage**
+```typescript
+// Require authentication
+router.use(authenticate);
+
+// Require admin role
+router.use(requireAdmin);
+
+// Require admin or customer support
+router.use(requireAdminOrSupport);
+```
+
+**2. Accessing User in Controllers**
+```typescript
+const userId = (req as any).user?._id;
+const userRole = (req as any).user?.role;
+```
+
+### Model Standards
+
+**1. Type Definitions**
+- Define interfaces in `models/` directory
+- Include DTOs (Data Transfer Objects) for create/update operations
+- Include Response types (without sensitive fields)
+
+**2. Model Pattern**
+```typescript
+export interface ModelName {
+  _id?: string;
+  field1: string;
+  field2: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface CreateModelDto {
+  field1: string;
+  field2: number;
+}
+
+export interface UpdateModelDto {
+  field1?: string;
+  field2?: number;
+}
+
+export interface ModelResponse {
+  _id: string;
+  field1: string;
+  field2: number;
+  created_at: Date;
+  updated_at: Date;
+}
+```
+
+### Logging Standards
+
+**1. Use Structured Logging**
+```typescript
+logger.info("Action description", { context });
+logger.error("Error description", { error, context });
+logger.warn("Warning description", { context });
+```
+
+**2. Log Levels**
+- `info` - Normal operations, successful requests
+- `warn` - Warning conditions, non-critical issues
+- `error` - Error conditions, failures
+
+### Import Standards
+
+**1. Import Order**
+1. External dependencies
+2. Internal modules (config, utils, middleware)
+3. Local modules (models, repositories, services)
+4. Types
+
+**2. Import Pattern**
+```typescript
+// External
+import express from "express";
+import type { Request, Response } from "express";
+
+// Internal
+import { logger } from "../../utils/logger.js";
+import { authenticate } from "../../middleware/auth.middleware.js";
+
+// Local
+import { userService } from "../services/user.service.js";
+import type { UserResponse } from "../../models/user.model.js";
+```
+
+### TypeScript Standards
+
+**1. Strict Type Safety**
+- Use TypeScript strict mode
+- Define types for all data structures
+- Use `type` for unions, `interface` for objects
+- Avoid `any` - use `unknown` if type is truly unknown
+
+**2. Optional Properties**
+- Use `exactOptionalPropertyTypes: true` in tsconfig
+- Conditionally include optional properties:
+```typescript
+{
+  ...data,
+  ...(optionalField && { optionalField })
+}
+```
+
+### Script Standards
+
+**1. Executable Scripts**
+- Use shebang: `#!/usr/bin/env tsx`
+- Make executable: `chmod +x scripts/script-name.ts`
+- Include usage documentation in comments
+
+**2. Script Pattern**
+```typescript
+#!/usr/bin/env tsx
+
+/**
+ * Script Description
+ * 
+ * Usage:
+ *   npx tsx scripts/script-name.ts
+ */
+
+import dotenv from "dotenv";
+import { connectDatabase, closeDatabase } from "../src/config/database.js";
+
+dotenv.config();
+
+async function main() {
+  try {
+    await connectDatabase();
+    // Script logic
+    await closeDatabase();
+    process.exit(0);
+  } catch (error) {
+    console.error(error);
+    await closeDatabase();
+    process.exit(1);
+  }
+}
+
+main();
+```
 
 ---
 
