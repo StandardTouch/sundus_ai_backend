@@ -36,8 +36,10 @@ export abstract class BaseMessageHandler {
     tracker: TimingTracker
   ): Promise<{ success: boolean; message_id?: string; error?: string }> {
     tracker.addEvent("Sending message via AI Sensy");
+    const sendStartTime = process.hrtime.bigint();
     const result = await this.aisensyService.sendTextMessage(phoneNumber, text);
-    tracker.addEvent(`Message sent`);
+    const sendTime = Number(process.hrtime.bigint() - sendStartTime) / 1000000;
+    tracker.addEvent(`Message sent (took ${Math.round(sendTime * 100) / 100}ms)`);
     return result;
   }
 }

@@ -13,7 +13,7 @@ app.use(express.json());
 
 const webhookGenerator = new WebhookGenerator();
 const webhookSender = new WebhookSender(
-  process.env.TARGET_WEBHOOK_URL || "http://localhost:3000"
+  process.env.TARGET_WEBHOOK_URL || "http://localhost:8080"
 );
 
 /**

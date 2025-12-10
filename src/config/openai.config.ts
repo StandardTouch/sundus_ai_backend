@@ -38,8 +38,9 @@ export const openaiConfig = {
 
   /**
    * Default timeout for API requests (ms)
+   * Increased to 120 seconds to handle longer responses
    */
-  timeout: parseInt(process.env.OPENAI_TIMEOUT || "30000", 10),
+  timeout: parseInt(process.env.OPENAI_TIMEOUT || "120000", 10),
 
   /**
    * Maximum number of retries for failed requests

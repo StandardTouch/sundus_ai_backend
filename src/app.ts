@@ -82,6 +82,8 @@ app.get("/health", (req: Request, res: Response) => {
 
 // Store cleanup interval for graceful shutdown
 let cleanupInterval: NodeJS.Timeout | null = null;
+let server: any = null;
+let isShuttingDown = false;
 
 // Initialize database and start server
 async function startServer() {
@@ -97,12 +99,12 @@ async function startServer() {
     cleanupInterval = cleanupService.startPeriodicCleanup();
 
     // Start server
-app.listen(PORT, () => {
+    server = app.listen(PORT, () => {
       logger.info(`Server started on port ${PORT}`, { 
         port: PORT,
         env: process.env.NODE_ENV || "development",
       });
-});
+    });
   } catch (error) {
     logger.error("Failed to start server", { error });
     process.exit(1);
@@ -110,23 +112,45 @@ app.listen(PORT, () => {
 }
 
 // Graceful shutdown
-process.on("SIGINT", async () => {
-  logger.info("Shutting down gracefully...");
-  if (cleanupInterval) {
-    cleanupService.stopPeriodicCleanup(cleanupInterval);
+async function gracefulShutdown(signal: string) {
+  if (isShuttingDown) {
+    logger.warn("Shutdown already in progress, forcing exit");
+    process.exit(1);
   }
-  await closeDatabase();
-  process.exit(0);
-});
 
-process.on("SIGTERM", async () => {
-  logger.info("Shutting down gracefully...");
-  if (cleanupInterval) {
-    cleanupService.stopPeriodicCleanup(cleanupInterval);
+  isShuttingDown = true;
+  logger.info(`Received ${signal}, shutting down gracefully...`);
+
+  try {
+    // Stop accepting new connections
+    if (server) {
+      server.close(() => {
+        logger.info("HTTP server closed");
+      });
+    }
+
+    // Stop periodic cleanup
+    if (cleanupInterval) {
+      cleanupService.stopPeriodicCleanup(cleanupInterval);
+    }
+
+    // Wait for in-flight requests (give up to 30 seconds)
+    logger.info("Waiting for in-flight requests to complete...");
+    await new Promise(resolve => setTimeout(resolve, 30000));
+
+    // Close database connection
+    await closeDatabase();
+
+    logger.info("Graceful shutdown completed");
+    process.exit(0);
+  } catch (error) {
+    logger.error("Error during graceful shutdown", { error });
+    process.exit(1);
   }
-  await closeDatabase();
-  process.exit(0);
-});
+}
+
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 
 // Start the server
 startServer();

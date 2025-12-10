@@ -114,15 +114,16 @@ export class TextMessageHandler extends BaseMessageHandler {
     const result = await this.sendMessage(phoneNumber, aiResponse, tracker);
     
     if (result.success) {
-      logger.info("Response sent successfully", {
+      logger.info("AI response sent successfully", {
         phoneNumber,
         messageId: result.message_id,
         tokensUsed: openaiResult.usage?.total_tokens
       });
     } else {
-      logger.error("Failed to send response", {
+      logger.error("Failed to send AI response", {
         phoneNumber,
-        error: result.error
+        error: result.error,
+        messageId: result.message_id
       });
     }
 
