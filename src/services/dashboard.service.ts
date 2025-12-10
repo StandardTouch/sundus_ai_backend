@@ -169,54 +169,38 @@ export class DashboardService {
 
   /**
    * Get response accuracy
+   * Uses feedback timestamps instead of message timestamps to include all feedback received in the period
    */
   private async getResponseAccuracy(
     currentPeriodStart: Date,
     previousPeriodStart: Date
   ): Promise<{ accuracy: number; previousAccuracy: number }> {
     try {
-      // Run both queries in parallel
-      const [currentResult, previousResult] = await Promise.all([
-        conversationMessageRepository.getCollection()
-          .aggregate([
-            {
-              $match: {
-                role: 'assistant',
-                timestamp: { $gte: currentPeriodStart },
-                'metadata.accuracy_score': { $exists: true }
-              }
-            },
-            {
-              $group: {
-                _id: null,
-                avg: { $avg: '$metadata.accuracy_score' },
-                count: { $sum: 1 }
-              }
-            }
-          ])
+      // Get feedback received in current period and previous period
+      const [currentFeedbacks, previousFeedbacks] = await Promise.all([
+        feedbackRepository.getCollection()
+          .find({
+            created_at: { $gte: currentPeriodStart },
+            original_message_id: { $exists: true, $ne: null }
+          })
           .toArray(),
-        conversationMessageRepository.getCollection()
-          .aggregate([
-            {
-              $match: {
-                role: 'assistant',
-                timestamp: { $gte: previousPeriodStart, $lt: currentPeriodStart },
-                'metadata.accuracy_score': { $exists: true }
-              }
-            },
-            {
-              $group: {
-                _id: null,
-                avg: { $avg: '$metadata.accuracy_score' },
-                count: { $sum: 1 }
-              }
-            }
-          ])
+        feedbackRepository.getCollection()
+          .find({
+            created_at: { $gte: previousPeriodStart, $lt: currentPeriodStart },
+            original_message_id: { $exists: true, $ne: null }
+          })
           .toArray()
       ]);
 
-      const currentAccuracy = currentResult[0]?.avg || 0;
-      const previousAccuracy = previousResult[0]?.avg || 0;
+      // Calculate accuracy from feedback
+      // is_positive: true = 1.0, false = 0.0
+      const currentAccuracy = currentFeedbacks.length > 0
+        ? currentFeedbacks.reduce((sum, f) => sum + (f.is_positive ? 1.0 : 0.0), 0) / currentFeedbacks.length
+        : 0;
+
+      const previousAccuracy = previousFeedbacks.length > 0
+        ? previousFeedbacks.reduce((sum, f) => sum + (f.is_positive ? 1.0 : 0.0), 0) / previousFeedbacks.length
+        : 0;
 
       // Convert to percentage (0-1 to 0-100)
       return {
