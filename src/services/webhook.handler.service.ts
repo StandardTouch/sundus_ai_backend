@@ -35,8 +35,8 @@ interface WebhookPayload {
  */
 interface TimingEvent {
   event: string;
-  timestamp: number;
-  elapsed: number; // milliseconds since start
+  timestamp: number; // milliseconds
+  elapsed: number; // milliseconds since start (with decimal precision)
 }
 
 /**
@@ -171,16 +171,17 @@ export class WebhookHandlerService {
     message: any,
     addEvent: (event: string) => void
   ): Promise<ProcessingResult> {
-    const startTime = Date.now();
+    // Use high-resolution time for better precision
+    const startTime = process.hrtime.bigint();
     const events: TimingEvent[] = [];
     
     const localAddEvent = (eventName: string) => {
-      const now = Date.now();
-      const elapsed = now - startTime;
+      const now = process.hrtime.bigint();
+      const elapsed = Number(now - startTime) / 1000000; // Convert to milliseconds
       events.push({
         event: eventName,
-        timestamp: now,
-        elapsed
+        timestamp: Number(now / BigInt(1000000)), // Convert to milliseconds
+        elapsed: Math.round(elapsed * 100) / 100 // Round to 2 decimal places
       });
       addEvent(eventName);
     };
@@ -191,8 +192,9 @@ export class WebhookHandlerService {
     
     if (!text) {
       logger.warn("TEXT message received without text content", { phoneNumber, message });
+      const totalTime = Number(process.hrtime.bigint() - startTime) / 1000000;
       return {
-        totalTime: Date.now() - startTime,
+        totalTime: Math.round(totalTime * 100) / 100,
         events,
         breakdown: "No text content found"
       };
@@ -206,30 +208,30 @@ export class WebhookHandlerService {
     localAddEvent("Preparing response");
     const baseResponseText = `You said: ${text}`;
     
+    // Send the base response first
     localAddEvent("Sending message via AI Sensy");
-    const sendStartTime = Date.now();
+    const sendStartTime = process.hrtime.bigint();
     
-    // Calculate timing before sending (approximate, will be updated)
-    let totalTime = Date.now() - startTime;
-    let breakdown = this.formatTimingBreakdown(events, totalTime);
+    const result = await this.aisensyService.sendTextMessage(phoneNumber, baseResponseText);
+    const sendTime = Number(process.hrtime.bigint() - sendStartTime) / 1000000;
+    localAddEvent(`Message sent (took ${Math.round(sendTime * 100) / 100}ms)`);
     
-    // Include timing in the response message
-    const responseWithTiming = `${baseResponseText}\n\n⏱️ Processing Time: ${totalTime}ms\n${breakdown}`;
+    // Calculate final total time after everything is done
+    const totalTime = Number(process.hrtime.bigint() - startTime) / 1000000;
+    const finalTotalTime = Math.round(totalTime * 100) / 100;
+    const breakdown = this.formatTimingBreakdown(events, finalTotalTime);
     
-    const result = await this.aisensyService.sendTextMessage(phoneNumber, responseWithTiming);
-    const sendTime = Date.now() - sendStartTime;
-    localAddEvent(`Message sent (took ${sendTime}ms)`);
-    
-    // Calculate final total time
-    totalTime = Date.now() - startTime;
-    breakdown = this.formatTimingBreakdown(events, totalTime);
+    // Send timing breakdown as a separate message
+    const timingMessage = `⏱️ Processing Time: ${finalTotalTime}ms\n${breakdown}`;
+    await this.aisensyService.sendTextMessage(phoneNumber, timingMessage);
+    localAddEvent("Timing message sent");
     
     if (result.success) {
       logger.info("Response sent successfully", {
         phoneNumber,
         messageId: result.message_id,
-        sendTime: `${sendTime}ms`,
-        totalTime: `${totalTime}ms`
+        sendTime: `${Math.round(sendTime * 100) / 100}ms`,
+        totalTime: `${finalTotalTime}ms`
       });
     } else {
       logger.error("Failed to send response", {
@@ -239,7 +241,7 @@ export class WebhookHandlerService {
     }
 
     return {
-      totalTime,
+      totalTime: finalTotalTime,
       events,
       breakdown
     };
@@ -440,10 +442,21 @@ export class WebhookHandlerService {
       const prevEvent = i > 0 ? events[i - 1] : null;
       const timeSincePrev = prevEvent ? event.elapsed - prevEvent.elapsed : event.elapsed;
       
-      breakdown += `  • ${event.event}: +${timeSincePrev}ms (${event.elapsed}ms total)\n`;
+      // Format with 2 decimal places if less than 1ms, otherwise round to nearest integer
+      const formattedTimeSincePrev = timeSincePrev < 1 
+        ? timeSincePrev.toFixed(2) 
+        : Math.round(timeSincePrev).toString();
+      const formattedElapsed = event.elapsed < 1 
+        ? event.elapsed.toFixed(2) 
+        : Math.round(event.elapsed).toString();
+      
+      breakdown += `  • ${event.event}: +${formattedTimeSincePrev}ms (${formattedElapsed}ms total)\n`;
     }
     
-    breakdown += `\n⏱️ Total: ${totalTime}ms`;
+    const formattedTotal = totalTime < 1 
+      ? totalTime.toFixed(2) 
+      : Math.round(totalTime).toString();
+    breakdown += `\n⏱️ Total: ${formattedTotal}ms`;
     
     return breakdown;
   }
