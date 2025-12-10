@@ -69,18 +69,30 @@ export class OpenAIService {
         options
       });
 
-      const response = await this.client.chat.completions.create({
+      const requestParams: any = {
         model,
         messages: messages.map(msg => ({
           role: msg.role,
           content: msg.content
         })),
         temperature: options?.temperature ?? 0.7,
-        max_tokens: options?.max_tokens,
-        top_p: options?.top_p,
-        frequency_penalty: options?.frequency_penalty,
-        presence_penalty: options?.presence_penalty,
-      });
+      };
+
+      // Conditionally include optional parameters only if defined
+      if (options?.max_tokens !== undefined) {
+        requestParams.max_tokens = options.max_tokens;
+      }
+      if (options?.top_p !== undefined) {
+        requestParams.top_p = options.top_p;
+      }
+      if (options?.frequency_penalty !== undefined) {
+        requestParams.frequency_penalty = options.frequency_penalty;
+      }
+      if (options?.presence_penalty !== undefined) {
+        requestParams.presence_penalty = options.presence_penalty;
+      }
+
+      const response = await this.client.chat.completions.create(requestParams);
 
       const assistantMessage = response.choices[0]?.message?.content;
 
@@ -98,16 +110,21 @@ export class OpenAIService {
         messageLength: assistantMessage.length
       });
 
-      return {
+      const result: ChatCompletionResult = {
         success: true,
         message: assistantMessage,
-        model: response.model,
-        usage: response.usage ? {
+        model: response.model
+      };
+
+      if (response.usage) {
+        result.usage = {
           prompt_tokens: response.usage.prompt_tokens,
           completion_tokens: response.usage.completion_tokens,
           total_tokens: response.usage.total_tokens
-        } : undefined
-      };
+        };
+      }
+
+      return result;
     } catch (error: any) {
       logger.error("OpenAI chat completion error", { error, messages, options });
       
