@@ -7,6 +7,7 @@ import { logger } from "../utils/logger.js";
 import { AISensyService } from "./aisensy.service.js";
 import { TimingTracker } from "../utils/timing.util.js";
 import { conversationService } from "./conversation.service.js";
+import { detectLanguage } from "../utils/language.util.js";
 import {
   TextMessageHandler,
   ImageMessageHandler,
@@ -159,11 +160,27 @@ export class WebhookHandlerService {
       }
 
       // Send campaign feedback template message
-      tracker.addEvent("Sending campaign feedback template");
+      // Detect language from the last AI response to send appropriate template
+      tracker.addEvent("Detecting language for feedback template");
+      const recentMessages = await conversationService.getRecentMessages(phoneNumber, 5);
+      const lastAssistantMessage = recentMessages
+        .filter(msg => msg.role === 'assistant' && !msg.metadata?.is_feedback_template)
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0];
+      
+      const language = lastAssistantMessage 
+        ? detectLanguage(lastAssistantMessage.content)
+        : 'en'; // Default to English
+      
+      const templateName = language === 'ar' 
+        ? "message_feedback_arabic"
+        : "message_feedback_english";
+      const languageCode = language === 'ar' ? "ar" : "en_us";
+      
+      tracker.addEvent(`Sending campaign feedback template (${language})`);
       const campaignResult = await this.aisensyService.sendTemplateMessage(
         phoneNumber,
-        "message_feedback_english",
-        "en_us"
+        templateName,
+        languageCode
       );
 
       if (campaignResult.success && campaignResult.message_id) {
@@ -174,19 +191,23 @@ export class WebhookHandlerService {
           campaignResult.message_id,
           "Feedback request template",
           {
-            template_name: "message_feedback_english",
-            is_feedback_template: true
+            template_name: templateName,
+            is_feedback_template: true,
+            language: language
           }
         );
         
         logger.info("Campaign feedback template sent and stored", {
           phoneNumber,
-          messageId: campaignResult.message_id
+          messageId: campaignResult.message_id,
+          template: templateName,
+          language
         });
       } else {
         logger.error("Failed to send campaign feedback template", {
           phoneNumber,
-          error: campaignResult.error
+          error: campaignResult.error,
+          template: templateName
         });
       }
       

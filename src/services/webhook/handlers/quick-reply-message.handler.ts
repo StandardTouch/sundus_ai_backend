@@ -11,9 +11,12 @@ import { conversationMessageRepository } from "../../../repositories/conversatio
 import { feedbackRepository } from "../../../repositories/feedback.repository.js";
 
 /**
- * Feedback template name
+ * Feedback template names
  */
-const FEEDBACK_TEMPLATE_NAME = "message_feedback_english";
+const FEEDBACK_TEMPLATES = {
+  english: "message_feedback_english",
+  arabic: "message_feedback_arabic"
+};
 
 /**
  * Quick Reply Message Handler
@@ -42,33 +45,63 @@ export class QuickReplyMessageHandler extends BaseMessageHandler {
     // Check if this is a reply to the feedback template
     tracker.addEvent("Checking if feedback template reply");
     let isFeedbackReply = false;
+    let repliedToMessage: any = null;
+    let templateName: string | undefined = undefined;
 
     if (repliedToMessageId) {
       // Check if the replied-to message is the feedback template
-      const repliedToMessage = await conversationMessageRepository.findByMessageId(repliedToMessageId);
+      repliedToMessage = await conversationMessageRepository.findByMessageId(repliedToMessageId);
       
-      if (repliedToMessage && 
-          repliedToMessage.metadata?.template_name === FEEDBACK_TEMPLATE_NAME) {
+      templateName = repliedToMessage?.metadata?.template_name;
+      const isFeedbackTemplate = repliedToMessage?.metadata?.is_feedback_template === true;
+      
+      if (repliedToMessage && isFeedbackTemplate && 
+          (templateName === FEEDBACK_TEMPLATES.english || templateName === FEEDBACK_TEMPLATES.arabic)) {
         isFeedbackReply = true;
         tracker.addEvent("Confirmed feedback template reply");
         
         // Determine feedback value from callback payload
-        // Common patterns: "Yes", "No", "Excellent", "Good", etc.
-        const feedbackValue = this.parseFeedbackValue(callbackPayload);
+        // Handles both English and Arabic responses
+        const feedbackValue = this.parseFeedbackValue(callbackPayload, templateName);
         
         // Store feedback
         tracker.addEvent("Storing feedback");
         try {
-          await feedbackRepository.create({
+          // Get the AI response message ID that was being rated
+          // The repliedToMessageId is the template message, we need to find the AI response before it
+          const recentMessages = await conversationMessageRepository.getRecentMessages(phoneNumber, 10);
+          const aiResponseMessage = recentMessages
+            .filter(msg => 
+              msg.role === 'assistant' && 
+              !msg.metadata?.is_feedback_template &&
+              msg.timestamp < repliedToMessage.timestamp
+            )
+            .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0];
+          
+          const templateLanguage = repliedToMessage.metadata?.language || 
+            (templateName === FEEDBACK_TEMPLATES.arabic ? 'ar' : 'en');
+          
+          const feedbackData: any = {
             phone_number: phoneNumber,
             message_id: messageId,
-            feedback: feedbackValue
-          });
+            feedback: feedbackValue,
+            template_name: templateName,
+            language: templateLanguage as 'en' | 'ar'
+          };
+          
+          if (aiResponseMessage?.message_id) {
+            feedbackData.original_message_id = aiResponseMessage.message_id;
+          }
+          
+          await feedbackRepository.create(feedbackData);
           
           logger.info("Feedback stored successfully", {
             phoneNumber,
             messageId,
-            feedback: feedbackValue
+            feedback: feedbackValue,
+            template: templateName,
+            language: templateLanguage,
+            originalMessageId: aiResponseMessage?.message_id
           });
         } catch (error) {
           logger.error("Failed to store feedback", {
@@ -83,12 +116,21 @@ export class QuickReplyMessageHandler extends BaseMessageHandler {
     // If it's feedback, send thank you message (don't process with OpenAI)
     if (isFeedbackReply) {
       tracker.addEvent("Sending feedback acknowledgment");
-      const responseText = "Thank you! Happy to help";
+      
+      // Get the template language to send appropriate response
+      const templateLanguage = repliedToMessage?.metadata?.language || 'en';
+      
+      const responseText = templateLanguage === 'ar' 
+        ? "شكراً لك! سعيد بمساعدتك"
+        : "Thank you! Happy to help";
       
       const result = await this.sendMessage(phoneNumber, responseText, tracker);
       
       if (result.success) {
-        logger.info("Feedback acknowledgment sent successfully", { phoneNumber });
+        logger.info("Feedback acknowledgment sent successfully", { 
+          phoneNumber,
+          language: templateLanguage
+        });
       } else {
         logger.error("Failed to send feedback acknowledgment", { 
           phoneNumber, 
@@ -117,29 +159,47 @@ export class QuickReplyMessageHandler extends BaseMessageHandler {
   /**
    * Parse feedback value from callback payload
    * Maps common positive/negative responses to 'yes' or 'no'
+   * Handles both English and Arabic responses
    */
-  private parseFeedbackValue(callbackPayload: string | undefined): 'yes' | 'no' {
+  private parseFeedbackValue(callbackPayload: string | undefined, templateName?: string): 'yes' | 'no' {
     if (!callbackPayload) return 'yes'; // Default to positive
     
-    const payload = callbackPayload.toLowerCase().trim();
+    const payload = callbackPayload.trim();
+    const isArabicTemplate = templateName === FEEDBACK_TEMPLATES.arabic;
     
-    // Positive feedback indicators
-    const positivePatterns = [
-      'yes', 'y', 'excellent', 'good', 'great', 'awesome', 
-      'perfect', 'helpful', 'thanks', 'thank you'
-    ];
-    
-    // Negative feedback indicators
-    const negativePatterns = [
-      'no', 'n', 'bad', 'poor', 'not helpful', 'unhelpful'
-    ];
-    
-    if (positivePatterns.some(pattern => payload.includes(pattern))) {
-      return 'yes';
-    }
-    
-    if (negativePatterns.some(pattern => payload.includes(pattern))) {
-      return 'no';
+    if (isArabicTemplate) {
+      // Arabic feedback options: "نعم" (Yes) or "التحدث إلى موظف" (Talk to employee/human)
+      // "نعم" = positive feedback (yes)
+      // "التحدث إلى موظف" = negative feedback (no - wants to talk to human)
+      if (payload.includes('نعم')) {
+        return 'yes';
+      }
+      if (payload.includes('التحدث') || payload.includes('موظف')) {
+        return 'no';
+      }
+    } else {
+      // English feedback options: "Yes" or "Talk To Human"
+      const lowerPayload = payload.toLowerCase();
+      
+      // Positive feedback indicators
+      const positivePatterns = [
+        'yes', 'y', 'excellent', 'good', 'great', 'awesome', 
+        'perfect', 'helpful', 'thanks', 'thank you'
+      ];
+      
+      // Negative feedback indicators (including "Talk To Human")
+      const negativePatterns = [
+        'no', 'n', 'bad', 'poor', 'not helpful', 'unhelpful',
+        'talk to human', 'talk to', 'human', 'agent', 'representative'
+      ];
+      
+      if (positivePatterns.some(pattern => lowerPayload.includes(pattern))) {
+        return 'yes';
+      }
+      
+      if (negativePatterns.some(pattern => lowerPayload.includes(pattern))) {
+        return 'no';
+      }
     }
     
     // Default to positive if unclear

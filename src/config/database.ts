@@ -94,6 +94,10 @@ async function createIndexes(): Promise<void> {
     await feedbackCollection.createIndex({ phone_number: 1 });
     await feedbackCollection.createIndex({ message_id: 1 });
     await feedbackCollection.createIndex({ created_at: -1 });
+    await feedbackCollection.createIndex({ is_positive: 1 }); // For analytics queries
+    await feedbackCollection.createIndex({ response_type: 1 }); // For analytics queries
+    await feedbackCollection.createIndex({ language: 1 }); // For language-based analytics
+    await feedbackCollection.createIndex({ created_at: -1, is_positive: 1 }); // Compound index for time-based analytics
 
     // FAQs collection indexes
     const faqsCollection = db.collection("faqs");
