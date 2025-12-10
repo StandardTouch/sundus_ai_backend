@@ -93,7 +93,24 @@ export class QuickReplyMessageHandler extends BaseMessageHandler {
             feedbackData.original_message_id = aiResponseMessage.message_id;
           }
           
+          // Link feedback to conversation
+          if (aiResponseMessage?.conversation_id) {
+            feedbackData.conversation_id = aiResponseMessage.conversation_id;
+          }
+          
           await feedbackRepository.create(feedbackData);
+          
+          // Update accuracy score in the original message metadata
+          if (aiResponseMessage) {
+            const accuracyScore = feedbackValue === 'yes' ? 1.0 : 0.0; // 1.0 = helpful, 0.0 = not helpful
+            await conversationMessageRepository.updateMessageMetadata(
+              aiResponseMessage.message_id,
+              {
+                was_helpful: feedbackValue === 'yes',
+                accuracy_score: accuracyScore
+              }
+            );
+          }
           
           logger.info("Feedback stored successfully", {
             phoneNumber,

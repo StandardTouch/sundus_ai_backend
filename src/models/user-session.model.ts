@@ -9,6 +9,8 @@ export interface UserSession {
   // User Identification
   phone_number: string;           // Primary identifier (unique)
   contact_id?: string;            // From AI Sensy webhook
+  user_name?: string;             // Display name (from AI Sensy or user input)
+  contact_name?: string;          // Contact name from AI Sensy
   
   // User Preferences
   language: 'en' | 'ar' | 'auto'; // User's language preference

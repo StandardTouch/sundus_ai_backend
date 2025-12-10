@@ -13,6 +13,7 @@ import { webhookHandlerService } from "./services/webhook.handler.service.js";
 import authRoutes from "./auth/routes/auth.routes.js";
 import userRoutes from "./users/routes/user.routes.js";
 import settingsRoutes from "./settings/routes/settings.routes.js";
+import { dashboardRoutes } from "./dashboard/index.js";
 
 dotenv.config();
 
@@ -37,6 +38,7 @@ app.use(loggingMiddleware);
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 // Webhook endpoint (from AI Sensy)
 app.post("/", async (req: Request, res: Response) => {

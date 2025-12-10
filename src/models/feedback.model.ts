@@ -10,6 +10,9 @@ export interface Feedback {
   // User identification
   phone_number: string;           // Link to user
   
+  // Conversation tracking
+  conversation_id?: string;       // Link to conversation thread
+  
   // Message identification
   message_id: string;             // AI Sensy message ID (quick reply message)
   original_message_id?: string;   // AI Sensy message ID of the AI response being rated
@@ -34,6 +37,7 @@ export interface CreateFeedbackDto {
   phone_number: string;
   message_id: string;
   feedback: 'yes' | 'no';
+  conversation_id?: string;
   original_message_id?: string;
   template_name?: string;
   language?: 'en' | 'ar';

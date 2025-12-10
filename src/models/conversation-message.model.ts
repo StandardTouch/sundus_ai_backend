@@ -9,6 +9,9 @@ export interface ConversationMessage {
   // User identification
   phone_number: string;              // User's phone number
   
+  // Conversation tracking
+  conversation_id?: string;          // Unique ID for conversation thread/session
+  
   // Message identification
   message_id: string;                // AI Sensy message ID (unique)
   
@@ -28,6 +31,11 @@ export interface ConversationMessage {
     feedback?: 'yes' | 'no';          // User feedback (if user)
     model?: string;                   // OpenAI model used (if assistant)
     tokens_used?: number;             // Tokens used for this message
+    response_time_ms?: number;        // Total response time (webhook to response sent)
+    openai_time_ms?: number;          // Time spent in OpenAI API
+    processing_time_ms?: number;      // Other processing time
+    accuracy_score?: number;          // Response accuracy (0-1 or percentage)
+    was_helpful?: boolean;            // Whether response was helpful (from feedback)
     [key: string]: any;               // Additional metadata
   };
 }
@@ -40,6 +48,7 @@ export interface CreateConversationMessageDto {
   message_id: string;
   role: 'user' | 'assistant';
   content: string;
+  conversation_id?: string;
   replied_to_message_id?: string;
   metadata?: ConversationMessage['metadata'];
 }

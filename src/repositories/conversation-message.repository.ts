@@ -8,8 +8,15 @@ import type { ConversationMessage, CreateConversationMessageDto } from "../model
 import { logger } from "../utils/logger.js";
 
 export class ConversationMessageRepository {
-  private getCollection() {
+  private collection() {
     return getDatabase().collection<ConversationMessage>("conversation_messages");
+  }
+
+  /**
+   * Get collection (public access for aggregations)
+   */
+  getCollection() {
+    return this.collection();
   }
 
   /**
@@ -17,7 +24,7 @@ export class ConversationMessageRepository {
    */
   async findByMessageId(messageId: string): Promise<ConversationMessage | null> {
     try {
-      const message = await this.getCollection().findOne({ message_id: messageId });
+      const message = await this.collection().findOne({ message_id: messageId });
       if (!message) return null;
       
       return {
@@ -38,7 +45,7 @@ export class ConversationMessageRepository {
     limit: number = 20
   ): Promise<ConversationMessage[]> {
     try {
-      const messages = await this.getCollection()
+      const messages = await this.collection()
         .find({ phone_number: phoneNumber })
         .sort({ timestamp: -1 })
         .limit(limit)
@@ -107,7 +114,7 @@ export class ConversationMessageRepository {
         timestamp: new Date()
       };
 
-      const result = await this.getCollection().insertOne(message as any);
+      const result = await this.collection().insertOne(message as any);
       
       // Auto-cleanup: Keep only last 20 messages per user
       await this.cleanupOldMessages(createData.phone_number, 20);
@@ -127,7 +134,7 @@ export class ConversationMessageRepository {
    */
   private async cleanupOldMessages(phoneNumber: string, keepCount: number): Promise<void> {
     try {
-      const messages = await this.getCollection()
+      const messages = await this.collection()
         .find({ phone_number: phoneNumber })
         .sort({ timestamp: -1 })
         .limit(keepCount + 1)
@@ -135,7 +142,7 @@ export class ConversationMessageRepository {
 
       if (messages.length > keepCount) {
         const oldest = messages[messages.length - 1];
-        await this.getCollection().deleteMany({
+        await this.collection().deleteMany({
           phone_number: phoneNumber,
           timestamp: { $lt: oldest.timestamp }
         });
@@ -146,11 +153,58 @@ export class ConversationMessageRepository {
   }
 
   /**
+   * Update message metadata
+   */
+  async updateMessageMetadata(
+    messageId: string,
+    metadataUpdates: Partial<ConversationMessage['metadata']>
+  ): Promise<boolean> {
+    try {
+      const result = await this.collection().updateOne(
+        { message_id: messageId },
+        { 
+          $set: { 
+            metadata: { 
+              $mergeObjects: [
+                { $ifNull: ["$metadata", {}] },
+                metadataUpdates
+              ]
+            }
+          } 
+        }
+      );
+      
+      if (result.modifiedCount > 0) {
+        logger.info("Updated message metadata", { messageId, metadataUpdates });
+        return true;
+      }
+      return false;
+    } catch (error) {
+      logger.error("Conversation message repository updateMessageMetadata error", { error, messageId });
+      // Fallback: try direct update
+      try {
+        const message = await this.findByMessageId(messageId);
+        if (message) {
+          const updatedMetadata = { ...message.metadata, ...metadataUpdates };
+          await this.collection().updateOne(
+            { message_id: messageId },
+            { $set: { metadata: updatedMetadata } }
+          );
+          return true;
+        }
+      } catch (fallbackError) {
+        logger.error("Fallback metadata update failed", { error: fallbackError, messageId });
+      }
+      return false;
+    }
+  }
+
+  /**
    * Delete all messages for a phone number
    */
   async deleteAllForPhoneNumber(phoneNumber: string): Promise<void> {
     try {
-      await this.getCollection().deleteMany({ phone_number: phoneNumber });
+      await this.collection().deleteMany({ phone_number: phoneNumber });
     } catch (error) {
       logger.error("Conversation message repository deleteAllForPhoneNumber error", { error, phoneNumber });
       throw error;

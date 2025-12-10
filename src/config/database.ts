@@ -87,17 +87,21 @@ async function createIndexes(): Promise<void> {
     const conversationMessagesCollection = db.collection("conversation_messages");
     await conversationMessagesCollection.createIndex({ phone_number: 1, timestamp: -1 });
     await conversationMessagesCollection.createIndex({ message_id: 1 });
+    await conversationMessagesCollection.createIndex({ conversation_id: 1 }); // For conversation tracking
     await conversationMessagesCollection.createIndex({ timestamp: 1 }, { expireAfterSeconds: 7776000 }); // 90 days TTL
+    await conversationMessagesCollection.createIndex({ conversation_id: 1, timestamp: -1 }); // Compound for conversation queries
 
     // Feedback collection indexes
     const feedbackCollection = db.collection("feedback");
     await feedbackCollection.createIndex({ phone_number: 1 });
     await feedbackCollection.createIndex({ message_id: 1 });
+    await feedbackCollection.createIndex({ conversation_id: 1 }); // Link to conversations
     await feedbackCollection.createIndex({ created_at: -1 });
     await feedbackCollection.createIndex({ is_positive: 1 }); // For analytics queries
     await feedbackCollection.createIndex({ response_type: 1 }); // For analytics queries
     await feedbackCollection.createIndex({ language: 1 }); // For language-based analytics
     await feedbackCollection.createIndex({ created_at: -1, is_positive: 1 }); // Compound index for time-based analytics
+    await feedbackCollection.createIndex({ conversation_id: 1, created_at: -1 }); // For conversation-based analytics
 
     // FAQs collection indexes
     const faqsCollection = db.collection("faqs");

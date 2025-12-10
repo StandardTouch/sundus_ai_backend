@@ -6,6 +6,7 @@
 import { BaseMessageHandler } from "./base-message.handler.js";
 import { openaiService } from "../../openai.service.js";
 import { conversationService } from "../../conversation.service.js";
+import { conversationMessageRepository } from "../../../repositories/conversation-message.repository.js";
 import { TimingTracker } from "../../../utils/timing.util.js";
 import type { ProcessingResult } from "../../../utils/timing.util.js";
 import type { ConversationMessage } from "../../../models/conversation-message.model.js";
@@ -81,7 +82,7 @@ export class TextMessageHandler extends BaseMessageHandler {
 
     // Store user message (store original, but process sanitized)
     tracker.addEvent("Storing user message");
-    await conversationService.storeUserMessage(
+    const storedUserMessage = await conversationService.storeUserMessage(
       phoneNumber,
       messageId,
       sanitizedText,
@@ -125,21 +126,35 @@ export class TextMessageHandler extends BaseMessageHandler {
     const aiResponse = openaiResult.message;
     tracker.addEvent("AI response generated");
 
-    // Store assistant message
+    // Calculate response time
+    const totalResponseTime = tracker.getTotalTime();
+    const openaiTime = tracker.getEvents().find(e => e.event.includes("OpenAI"))?.elapsed || 0;
+    const processingTime = totalResponseTime - openaiTime;
+
+    // Store assistant message with response time and accuracy data
     tracker.addEvent("Storing assistant message");
     const assistantMessageId = `assistant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const metadata: ConversationMessage['metadata'] = {};
+    const metadata: ConversationMessage['metadata'] = {
+      response_time_ms: Math.round(totalResponseTime),
+      openai_time_ms: Math.round(openaiTime),
+      processing_time_ms: Math.round(processingTime)
+    };
     if (openaiResult.model) {
       metadata.model = openaiResult.model;
     }
     if (openaiResult.usage?.total_tokens) {
       metadata.tokens_used = openaiResult.usage.total_tokens;
     }
+    
+    // Get conversation ID from stored user message
+    const conversationId = storedUserMessage?.conversation_id;
+    
     await conversationService.storeAssistantMessage(
       phoneNumber,
       assistantMessageId,
       aiResponse,
-      Object.keys(metadata).length > 0 ? metadata : undefined
+      metadata,
+      conversationId
     );
 
     // Send response via WhatsApp

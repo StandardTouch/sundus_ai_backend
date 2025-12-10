@@ -7,6 +7,7 @@ import { conversationMessageRepository } from "../repositories/conversation-mess
 import type { ConversationMessage, CreateConversationMessageDto } from "../models/conversation-message.model.js";
 import type { ChatMessage } from "./openai.service.js";
 import { logger } from "../utils/logger.js";
+import { generateConversationId, shouldStartNewConversation } from "../utils/conversation.util.js";
 
 /**
  * Conversation context options
@@ -77,25 +78,57 @@ export class ConversationService {
   }
 
   /**
+   * Get or create conversation ID for a phone number
+   */
+  async getOrCreateConversationId(phoneNumber: string): Promise<string> {
+    try {
+      // Get the most recent message for this phone number
+      const recentMessages = await conversationMessageRepository.getRecentMessages(phoneNumber, 1);
+      const lastMessage = recentMessages[0];
+
+      // Check if we should start a new conversation
+      if (!lastMessage || shouldStartNewConversation(lastMessage.timestamp)) {
+        return generateConversationId();
+      }
+
+      // Use existing conversation ID if available
+      if (lastMessage.conversation_id) {
+        return lastMessage.conversation_id;
+      }
+
+      // Generate new conversation ID if none exists
+      return generateConversationId();
+    } catch (error) {
+      logger.error("Error getting conversation ID", { error, phoneNumber });
+      return generateConversationId();
+    }
+  }
+
+  /**
    * Store a user message
    */
   async storeUserMessage(
     phoneNumber: string,
     messageId: string,
     content: string,
-    repliedToMessageId?: string
+    repliedToMessageId?: string,
+    conversationId?: string
   ): Promise<ConversationMessage> {
     try {
+      // Get or create conversation ID if not provided
+      const convId = conversationId || await this.getOrCreateConversationId(phoneNumber);
+
       const messageData: CreateConversationMessageDto = {
         phone_number: phoneNumber,
         message_id: messageId,
         role: 'user',
         content,
+        conversation_id: convId,
         replied_to_message_id: repliedToMessageId
       };
 
       const message = await conversationMessageRepository.create(messageData);
-      logger.info("Stored user message", { phoneNumber, messageId });
+      logger.info("Stored user message", { phoneNumber, messageId, conversationId: convId });
       
       return message;
     } catch (error) {
@@ -111,19 +144,28 @@ export class ConversationService {
     phoneNumber: string,
     messageId: string,
     content: string,
-    metadata?: ConversationMessage['metadata']
+    metadata?: ConversationMessage['metadata'],
+    conversationId?: string
   ): Promise<ConversationMessage> {
     try {
+      // Get conversation ID from most recent message if not provided
+      let convId = conversationId;
+      if (!convId) {
+        const recentMessages = await conversationMessageRepository.getRecentMessages(phoneNumber, 1);
+        convId = recentMessages[0]?.conversation_id;
+      }
+
       const messageData: CreateConversationMessageDto = {
         phone_number: phoneNumber,
         message_id: messageId,
         role: 'assistant',
         content,
+        conversation_id: convId,
         metadata
       };
 
       const message = await conversationMessageRepository.create(messageData);
-      logger.info("Stored assistant message", { phoneNumber, messageId });
+      logger.info("Stored assistant message", { phoneNumber, messageId, conversationId: convId });
       
       return message;
     } catch (error) {

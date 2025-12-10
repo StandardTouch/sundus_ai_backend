@@ -11,8 +11,15 @@ import { logger } from "../utils/logger.js";
  * Feedback Repository
  */
 export class FeedbackRepository {
-  private getCollection() {
+  private collection() {
     return getDatabase().collection<Feedback>("feedback");
+  }
+
+  /**
+   * Get collection (public access for aggregations)
+   */
+  getCollection() {
+    return this.collection();
   }
 
   /**
@@ -31,7 +38,7 @@ export class FeedbackRepository {
         created_at: new Date()
       };
 
-      const result = await this.getCollection().insertOne(feedbackData as any);
+      const result = await this.collection().insertOne(feedbackData as any);
       
       return {
         ...feedbackData,
@@ -48,7 +55,7 @@ export class FeedbackRepository {
    */
   async findByMessageId(messageId: string): Promise<Feedback | null> {
     try {
-      const feedback = await this.getCollection().findOne({ message_id: messageId });
+      const feedback = await this.collection().findOne({ message_id: messageId });
       if (!feedback) return null;
       
       return {
@@ -66,7 +73,7 @@ export class FeedbackRepository {
    */
   async findByPhoneNumber(phoneNumber: string, limit: number = 50): Promise<Feedback[]> {
     try {
-      const feedbacks = await this.getCollection()
+      const feedbacks = await this.collection()
         .find({ phone_number: phoneNumber })
         .sort({ created_at: -1 })
         .limit(limit)
@@ -142,6 +149,138 @@ export class FeedbackRepository {
       logger.error("Feedback repository getFeedbackStats error", { error, options });
       throw error;
     }
+  }
+
+  /**
+   * Get optimized feedback data for analytics dashboard
+   * Returns data in format optimized for dashboard display
+   */
+  async getFeedbackAnalytics(options?: {
+    startDate?: Date;
+    endDate?: Date;
+    groupBy?: 'day' | 'week' | 'month';
+  }): Promise<{
+    summary: {
+      total: number;
+      positive: number;
+      escalation: number;
+      satisfactionScore: number; // Calculated from positive/total (0-1 scale, can be converted to 1-5)
+    };
+    trends: Array<{
+      date: string;
+      total: number;
+      positive: number;
+      escalation: number;
+    }>;
+    byConversation: Array<{
+      conversation_id: string;
+      feedback_count: number;
+      positive_count: number;
+      escalation_count: number;
+    }>;
+  }> {
+    try {
+      const query: any = {};
+      
+      if (options?.startDate || options?.endDate) {
+        query.created_at = {};
+        if (options.startDate) query.created_at.$gte = options.startDate;
+        if (options.endDate) query.created_at.$lte = options.endDate;
+      }
+
+      const allFeedback = await this.getCollection()
+        .find(query)
+        .sort({ created_at: -1 })
+        .toArray();
+
+      const total = allFeedback.length;
+      const positive = allFeedback.filter(f => f.is_positive === true).length;
+      const escalation = allFeedback.filter(f => f.is_positive === false).length;
+      const satisfactionScore = total > 0 ? positive / total : 0; // 0-1 scale
+
+      // Group by date for trends
+      const groupBy = options?.groupBy || 'day';
+      const dateFormat = groupBy === 'day' ? '%Y-%m-%d' : groupBy === 'week' ? '%Y-W%V' : '%Y-%m';
+      
+      const trendsMap = new Map<string, { total: number; positive: number; escalation: number }>();
+      
+      allFeedback.forEach(feedback => {
+        const date = new Date(feedback.created_at);
+        let dateKey: string;
+        
+        if (groupBy === 'day') {
+          dateKey = date.toISOString().split('T')[0];
+        } else if (groupBy === 'week') {
+          const week = this.getWeekNumber(date);
+          dateKey = `${date.getFullYear()}-W${week}`;
+        } else {
+          dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        }
+        
+        const existing = trendsMap.get(dateKey) || { total: 0, positive: 0, escalation: 0 };
+        existing.total++;
+        if (feedback.is_positive) {
+          existing.positive++;
+        } else {
+          existing.escalation++;
+        }
+        trendsMap.set(dateKey, existing);
+      });
+
+      const trends = Array.from(trendsMap.entries())
+        .map(([date, data]) => ({ date, ...data }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      // Group by conversation
+      const conversationMap = new Map<string, { total: number; positive: number; escalation: number }>();
+      
+      allFeedback.forEach(feedback => {
+        const convId = feedback.conversation_id || 'unknown';
+        const existing = conversationMap.get(convId) || { total: 0, positive: 0, escalation: 0 };
+        existing.total++;
+        if (feedback.is_positive) {
+          existing.positive++;
+        } else {
+          existing.escalation++;
+        }
+        conversationMap.set(convId, existing);
+      });
+
+      const byConversation = Array.from(conversationMap.entries())
+        .map(([conversation_id, data]) => ({
+          conversation_id,
+          feedback_count: data.total,
+          positive_count: data.positive,
+          escalation_count: data.escalation
+        }))
+        .sort((a, b) => b.feedback_count - a.feedback_count)
+        .slice(0, 100); // Top 100 conversations
+
+      return {
+        summary: {
+          total,
+          positive,
+          escalation,
+          satisfactionScore
+        },
+        trends,
+        byConversation
+      };
+    } catch (error) {
+      logger.error("Feedback repository getFeedbackAnalytics error", { error, options });
+      throw error;
+    }
+  }
+
+  /**
+   * Helper to get week number
+   */
+  private getWeekNumber(date: Date): number {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
   }
 }
 
