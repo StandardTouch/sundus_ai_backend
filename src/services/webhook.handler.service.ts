@@ -6,6 +6,7 @@
 import { logger } from "../utils/logger.js";
 import { AISensyService } from "./aisensy.service.js";
 import { TimingTracker } from "../utils/timing.util.js";
+import { conversationService } from "./conversation.service.js";
 import {
   TextMessageHandler,
   ImageMessageHandler,
@@ -154,6 +155,38 @@ export class WebhookHandlerService {
         logger.error("Failed to send timing message", {
           phoneNumber,
           error: timingResult.error
+        });
+      }
+
+      // Send campaign feedback template message
+      tracker.addEvent("Sending campaign feedback template");
+      const campaignResult = await this.aisensyService.sendTemplateMessage(
+        phoneNumber,
+        "message_feedback_english",
+        "en_us"
+      );
+
+      if (campaignResult.success && campaignResult.message_id) {
+        // Store the template message in conversation_messages with metadata
+        // so we can identify it when user replies
+        await conversationService.storeAssistantMessage(
+          phoneNumber,
+          campaignResult.message_id,
+          "Feedback request template",
+          {
+            template_name: "message_feedback_english",
+            is_feedback_template: true
+          }
+        );
+        
+        logger.info("Campaign feedback template sent and stored", {
+          phoneNumber,
+          messageId: campaignResult.message_id
+        });
+      } else {
+        logger.error("Failed to send campaign feedback template", {
+          phoneNumber,
+          error: campaignResult.error
         });
       }
       

@@ -92,6 +92,7 @@ async function createIndexes(): Promise<void> {
     // Feedback collection indexes
     const feedbackCollection = db.collection("feedback");
     await feedbackCollection.createIndex({ phone_number: 1 });
+    await feedbackCollection.createIndex({ message_id: 1 });
     await feedbackCollection.createIndex({ created_at: -1 });
 
     // FAQs collection indexes
