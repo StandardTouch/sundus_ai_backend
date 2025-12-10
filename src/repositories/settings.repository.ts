@@ -107,11 +107,12 @@ export class SettingsRepository {
       const existing = await this.findByKey(createData.key);
       
       if (existing) {
-        return await this.update(createData.key, {
+        const updatePayload: UpdateSettingsDto & { updated_by?: string } = {
           value: createData.value,
-          description: createData.description,
-          updated_by: createData.updated_by
-        });
+          ...(createData.description && { description: createData.description }),
+          ...(createData.updated_by && { updated_by: createData.updated_by })
+        };
+        return await this.update(createData.key, updatePayload);
       } else {
         return await this.create(createData);
       }
