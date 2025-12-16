@@ -72,85 +72,50 @@ This document lists all tools/functions that the AI agent can call. Each tool is
 ### 2. Order Tracking Tools
 
 #### `track_order`
-**Purpose:** Start the order tracking process (initiates OTP authentication if needed)
+**Purpose:** Get all orders for a user by their phone number
 
 **When to use:**
-- User wants to track their order
-- User asks about order status
-- User wants to check delivery status
-- User asks "where is my order?"
-
-**Parameters:**
-```typescript
-{
-  order_id: string,      // Order ID (e.g., "6317" or "#6317")
-  phone_number: string   // User's phone number for authentication
-}
-```
-
-**Returns:** 
-- If not authenticated: Initiates OTP flow
-- If authenticated: Returns order details
-
-**Note:** This tool handles the OTP flow automatically if user is not authenticated.
-
----
-
-#### `verify_otp`
-**Purpose:** Verify OTP code for order tracking authentication
-
-**When to use:**
-- User provides OTP code during order tracking
-- OTP verification is needed
-
-**Parameters:**
-```typescript
-{
-  phone_number: string,  // User's phone number
-  otp_code: string       // OTP code received by user
-}
-```
-
-**Returns:** Authentication token and user details
-
----
-
-#### `get_order_details`
-**Purpose:** Get detailed information about a specific order (requires authentication)
-
-**When to use:**
-- User is authenticated and wants order details
-- After OTP verification
-- User asks for specific order information
-
-**Parameters:**
-```typescript
-{
-  order_id: string,  // Order ID (e.g., "6317" or "#6317")
-  token: string      // Authentication token (from verify_otp)
-}
-```
-
-**Returns:** Full order details (status, items, billing, payment, etc.)
-
----
-
-#### `list_orders`
-**Purpose:** Get list of all orders for authenticated user
-
-**When to use:**
-- User asks "show me all my orders"
-- User wants order history
+- User wants to see their orders
+- User asks "show my orders"
+- User wants to check their order history
 - User asks "what orders do I have?"
 
 **Parameters:**
 ```typescript
 {
-  token: string  // Authentication token
+  phone_number: string   // User's phone number (extracted from WhatsApp message)
 }
 ```
 
-**Returns:** Array of user's orders
+**Returns:** Array of all orders for that phone number
+
+**Note:** No authentication required. Uses constant API key from environment variable.
+
+---
+
+#### `get_order_details`
+**Purpose:** Get detailed information about a specific order
+
+**When to use:**
+- User wants to track a specific order
+- User asks about order status
+- User wants to check delivery status
+- User asks "where is my order?" or "track order #6317"
+
+**Parameters:**
+```typescript
+{
+  order_id: string,      // Order ID (e.g., "6317" or "#6317")
+  phone_number: string   // User's phone number (extracted from WhatsApp message)
+}
+```
+
+**Returns:** Full order details (status, items, billing, payment, etc.) for the specified order
+
+**Note:** No authentication required. Uses constant API key from environment variable. Searches orders by phone number and filters by order_id.
+
+---
+
 
 ---
 
@@ -259,41 +224,16 @@ export const tools = [
     type: "function",
     function: {
       name: "track_order",
-      description: "Start the order tracking process. Use this when user wants to: track their order, check order status, see order details, find out delivery status, or check where their order is. This will automatically initiate OTP authentication if user is not already authenticated.",
-      parameters: {
-        type: "object",
-        properties: {
-          order_id: {
-            type: "string",
-            description: "Order ID in format '#6317' or '6317'"
-          },
-          phone_number: {
-            type: "string",
-            description: "User's phone number for authentication (without country code prefix, e.g., '560916906')"
-          }
-        },
-        required: ["order_id", "phone_number"]
-      }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "verify_otp",
-      description: "Verify OTP code for order tracking authentication. Use this when user provides OTP code during order tracking flow.",
+      description: "Get all orders for a user by their phone number. Use this when user asks 'show my orders', 'what orders do I have?', or wants to see their order history.",
       parameters: {
         type: "object",
         properties: {
           phone_number: {
             type: "string",
-            description: "User's phone number"
-          },
-          otp_code: {
-            type: "string",
-            description: "OTP code received by user (4-6 digits)"
+            description: "User's phone number (extracted from WhatsApp message, e.g., '6361375923')"
           }
         },
-        required: ["phone_number", "otp_code"]
+        required: ["phone_number"]
       }
     }
   },
@@ -301,7 +241,7 @@ export const tools = [
     type: "function",
     function: {
       name: "get_order_details",
-      description: "Get detailed information about a specific order including status, items, billing details, and payment information. Requires user authentication. Use this after OTP verification or when user is already authenticated and asks for specific order information.",
+      description: "Get detailed information about a specific order including status, items, billing details, and payment information. Use this when user wants to track a specific order, asks about order status, wants to check delivery status, or asks 'where is my order?' or 'track order #6317'.",
       parameters: {
         type: "object",
         properties: {
@@ -309,29 +249,12 @@ export const tools = [
             type: "string",
             description: "Order ID in format '#6317' or '6317'"
           },
-          token: {
+          phone_number: {
             type: "string",
-            description: "Authentication token obtained from verify_otp"
+            description: "User's phone number (extracted from WhatsApp message, e.g., '6361375923')"
           }
         },
-        required: ["order_id", "token"]
-      }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "list_orders",
-      description: "Get list of all orders for the authenticated user. Use this when user asks 'show me all my orders', wants order history, or asks 'what orders do I have?'. Requires authentication.",
-      parameters: {
-        type: "object",
-        properties: {
-          token: {
-            type: "string",
-            description: "Authentication token obtained from verify_otp"
-          }
-        },
-        required: ["token"]
+        required: ["order_id", "phone_number"]
       }
     }
   },
@@ -403,10 +326,11 @@ User Receives Message
 
 ### Special Cases
 
-**OTP Sending:**
-- When `track_order` tool is called and user needs OTP
-- Our backend automatically sends OTP via WhatsApp
-- This is handled in the tool executor, not as a separate tool
+**Order Lookup:**
+- When `track_order` or `get_order_details` tool is called
+- Our backend automatically calls the order API with phone number
+- Uses constant API key from environment variable
+- No OTP or authentication required
 
 **Media Messages:**
 - When product search returns images
@@ -420,10 +344,10 @@ User Receives Message
 | Category | Tools | Purpose |
 |----------|-------|---------|
 | **Products** | `search_products`, `get_product_details`, `list_brands` | Product search and browsing |
-| **Orders** | `track_order`, `verify_otp`, `get_order_details`, `list_orders` | Order tracking and management |
+| **Orders** | `track_order`, `get_order_details` | Order tracking and management |
 | **FAQs** | `search_faqs` | Answer common questions |
 
-**Total: 8 Tools**
+**Total: 6 Tools**
 
 ---
 
@@ -444,19 +368,32 @@ AI formats: "I found 5 Nike watches: ..."
 ```
 User: "Track order #6317"
   ↓
-AI calls: track_order(order_id="#6317", phone_number="...")
+AI calls: get_order_details(order_id="#6317", phone_number="...")
   ↓
-If not authenticated:
-  - Sends OTP to user
-  - User provides OTP
-  - AI calls: verify_otp(phone_number, otp_code)
-  - Gets token
+Backend calls: GET /list_orders_temp?search={phone_number}
+  (with constant API key from env)
   ↓
-AI calls: get_order_details(order_id="#6317", token="...")
+Returns: Array of orders for that phone number
   ↓
-Returns: Order details
+Backend filters array to find order with order_id="#6317"
+  ↓
+Returns: Specific order details
   ↓
 AI formats: "Your order #6317 is completed..."
+```
+
+**Alternative Flow (List All Orders):**
+```
+User: "Show my orders"
+  ↓
+AI calls: track_order(phone_number="...")
+  ↓
+Backend calls: GET /list_orders_temp?search={phone_number}
+  (with constant API key from env)
+  ↓
+Returns: Array of all orders for that phone number
+  ↓
+AI formats: "You have 3 orders: ..."
 ```
 
 ### FAQ Flow

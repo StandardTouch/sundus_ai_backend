@@ -191,9 +191,8 @@ When a user replies to a message, we:
 - `search_products(query)` - Search products by SKU/brand/text
 - `get_product_details(product_id)` - Get full product info
 - `list_brands()` - Get all available brands
-- `track_order(order_id, phone_number)` - Start order tracking
-- `verify_otp(phone_number, otp_code)` - Verify OTP
-- `get_order_details(order_id, token)` - Get order after auth
+- `track_order(order_id, phone_number)` - Get orders by phone number
+- `get_order_details(order_id, phone_number)` - Get specific order details
 - `search_faqs(query)` - Search FAQ database
 
 **Agent Flow:**
@@ -214,9 +213,8 @@ When a user replies to a message, we:
 - Returns product data to AI
 
 #### Order Executor
-- Executes `track_order`, `verify_otp`, `get_order_details`
-- Handles OTP flow
-- Calls order service
+- Executes `track_order`, `get_order_details`
+- Calls order service with phone number
 - Returns order data to AI
 
 #### FAQ Executor
@@ -240,9 +238,8 @@ When a user replies to a message, we:
 
 #### Order Service
 - Order tracking logic
-- OTP management
-- Authentication flow
-- Calls order API client
+- Phone number extraction and formatting
+- Calls order API client with constant API key
 
 #### FAQ Service
 - FAQ search logic
@@ -306,40 +303,40 @@ When a user replies to a message, we:
 ### Order Tracking Flow (Agentic)
 
 ```
-1. User: "Track order #6317"
+1. User: "Track order #6317" or "Show my orders"
    ↓
 2. AI Agent receives message
    ↓
 3. AI decides to call: track_order(order_id="6317", phone_number="...")
+   or get_order_details(order_id="6317", phone_number="...")
    ↓
 4. Order Executor receives tool call
    ↓
-5. Check if user authenticated (has token):
-   - If yes: Skip to step 8
-   - If no: Proceed to OTP flow
+5. Order Service extracts phone number from user's WhatsApp message
    ↓
-6. OTP Flow:
-   a. Order Service calls: sendOTP(phone_number)
-   b. API Client calls Alhomaidhi: POST /number_verification
-   c. OTP sent via SMS/email by API
-   d. Send OTP to user via WhatsApp: "Your OTP is: 123456"
-   e. Wait for user: "123456"
-   f. Order Service calls: verifyOTP(phone_number, otp_code)
-   g. API Client calls Alhomaidhi: POST /otp_verification
-   h. Receive token and user_id
-   i. Store token in conversation
+6. Order Service calls: getOrdersByPhoneNumber(phone_number)
    ↓
-7. Order Service calls: getOrderDetails(order_id, token)
+7. API Client calls Alhomaidhi: GET /list_orders_temp?sort_by=asc&search={phone_number}&page=&per_page=null
+   Headers:
+   - Authorization: {ALHOMAIDHI_ORDER_API_KEY} (constant from env)
+   - phone_number: {phone_number}
    ↓
-8. API Client calls Alhomaidhi: GET /retrieve_order?order_id=6317
+8. API returns array of orders for that phone number
    ↓
-9. Order data returned to Order Executor
+9. If order_id specified:
+   - Filter array to find matching order
+   - Return specific order details
    ↓
-10. Executor returns order data to AI Agent
+10. If no order_id specified:
+   - Return all orders for the user
    ↓
-11. AI formats response: "Your order #6317 status: Completed..."
+11. Order data returned to Order Executor
    ↓
-12. Send formatted response to user
+12. Executor returns order data to AI Agent
+   ↓
+13. AI formats response: "Your order #6317 status: Completed..." or "You have 3 orders: ..."
+   ↓
+14. Send formatted response to user
 ```
 
 ### FAQ Search Flow (Agentic)

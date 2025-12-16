@@ -2,9 +2,9 @@
 
 ## Purpose
 
-The `ALHOMAIDHI_API_KEY` is used for **public API endpoints** that don't require user authentication:
+The `ALHOMAIDHI_API_KEY` (or `ALHOMAIDHI_ORDER_API_KEY` for orders) is used for API endpoints that don't require user authentication:
 
-### ✅ Uses API Key (Public Endpoints)
+### ✅ Uses API Key (No User Authentication Required)
 
 **1. List Brands**
 ```bash
@@ -39,29 +39,17 @@ Headers:
 - No user authentication needed
 - Uses API key
 
-### ❌ Uses Token (Private Endpoints - After OTP)
-
-**1. List Orders**
+**4. List Orders by Phone Number**
 ```bash
-GET /list_orders
+GET /list_orders_temp?search={phone_number}
 Headers:
-  Authorization: {token}  # From OTP verification, NOT API key
-  user_id: {user_id}     # From OTP verification
+  Authorization: {ALHOMAIDHI_ORDER_API_KEY}  # Constant value from env
+  phone_number: {phone_number}
 ```
-- Private data (user's orders)
-- Requires user authentication
-- Uses token from OTP verification
-
-**2. Get Order Details**
-```bash
-GET /retrieve_order?order_id={id}
-Headers:
-  Authorization: {token}  # From OTP verification, NOT API key
-  user_id: {user_id}     # From OTP verification
-```
-- Private data (user's order)
-- Requires user authentication
-- Uses token from OTP verification
+- User's order data (searched by phone number)
+- No OTP or user authentication required
+- Uses constant API key from environment variable
+- Phone number is used to identify user's orders
 
 ## Summary
 
@@ -70,14 +58,18 @@ Headers:
 | `/retrieve_brands` | API Key | `ALHOMAIDHI_API_KEY` |
 | `/list_products` | API Key | `ALHOMAIDHI_API_KEY` |
 | `/retrieve_product` | API Key | `ALHOMAIDHI_API_KEY` |
-| `/list_orders` | Token | Token from OTP verification |
-| `/retrieve_order` | Token | Token from OTP verification |
+| `/list_orders_temp` | API Key | `ALHOMAIDHI_ORDER_API_KEY` (constant from env) |
 
 ## Why We Need It
 
 - **Product Search**: Users can search products without authentication
 - **Brand Listing**: Users can see brands without authentication
-- **Order Tracking**: Requires authentication (token from OTP)
+- **Order Tracking**: Uses constant API key - no OTP or user authentication required
+  - Orders are identified by phone number
+  - API key is a constant value stored in environment variables
 
-The API key is for **public product/brand data**. Orders require **user authentication** via OTP.
+## Environment Variables
+
+- `ALHOMAIDHI_API_KEY` - For product and brand endpoints
+- `ALHOMAIDHI_ORDER_API_KEY` - For order endpoint (constant value, e.g., "5N7ZI3Dh2HIKgqMPBr0mFvfF7fqReF")
 

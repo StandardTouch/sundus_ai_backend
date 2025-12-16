@@ -2,174 +2,14 @@
 
 ## Alhomaidhi Group API Integration
 
-This document describes all external APIs used by Sundus AI for product search, order tracking, and authentication.
+This document describes all external APIs used by Sundus AI for product search and order tracking.
 
 **Base URL:** `https://alhomaidhigroup.com/wp-json/alhomaidhiapp/v2`
 
 **Common Headers:**
 - `Cookie: pll_language=en` (or `ar` for Arabic)
-- `Authorization: {token}` (for authenticated endpoints)
-- `user_id: {user_id}` (for authenticated endpoints)
-
----
-
-## Authentication APIs
-
-### 1. Send OTP
-
-**Endpoint:** `POST /number_verification`
-
-**Description:** Sends OTP to user's phone number for authentication. The WordPress website handles OTP delivery and verification - we just call the API.
-
-**Request:**
-```bash
-curl --location 'https://alhomaidhigroup.com/wp-json/alhomaidhiapp/v2/number_verification' \
-  --header 'Cookie: pll_language=en' \
-  --form 'phone_number="560916906"'
-```
-
-**Request Body (form-data):**
-- `phone_number` (string, required) - Phone number without country code prefix
-
-**Response:**
-```json
-{
-  "message": "success",
-  "status": "DELAPP00"
-}
-```
-
-**Status Codes:**
-- `DELAPP00` - Success
-- Other codes - Error (to be documented)
-
-**Notes:**
-- OTP is sent via SMS/email by the API
-- We need to send the OTP to user via WhatsApp using AI Sensy
-- Phone number format: "560916906" (without country code)
-
----
-
-### 2. Verify OTP
-
-**Endpoint:** `POST /otp_verification`
-
-**Description:** Verifies OTP code and returns authentication token.
-
-**Request:**
-```bash
-curl --location 'https://alhomaidhigroup.com/wp-json/alhomaidhiapp/v2/otp_verification' \
-  --header 'Cookie: pll_language=en' \
-  --form 'phone_number="560916906"' \
-  --form 'otp_code="999004"'
-```
-
-**Request Body (form-data):**
-- `phone_number` (string, required) - Phone number
-- `otp_code` (string, required) - OTP code received
-
-**Response:**
-```json
-{
-  "status": "DELAPP00",
-  "message": {
-    "token": "963841642FjxmU6oUoMZ9e82gT9PBTVWqjCph70pta4NUx0TTPtXcqQfFQu",
-    "user_id": "66",
-    "username": "abulaalaali",
-    "useremail": "abul.aala@standardtouch.com",
-    "mobileno": "560916906",
-    "arabic_full_name": " ",
-    "master_customer_id": "47853",
-    "full_name": "Abul Aala Mauzzam Ali"
-  }
-}
-```
-
-**Response Fields:**
-- `token` (string) - Authentication token (use in Authorization header)
-- `user_id` (string) - User ID (use in user_id header)
-- `master_customer_id` (string) - Customer ID
-- `full_name` (string) - User's full name
-- `mobileno` (string) - Phone number
-
-**Status Codes:**
-- `DELAPP00` - Success
-- Other codes - Invalid OTP or error
-
-**Usage:**
-- Store `token` and `user_id` for authenticated API calls
-- Token is used in `Authorization` header (not Bearer format)
-- Token should be validated before use
-
----
-
-### 3. Verify Token
-
-**Endpoint:** `POST /token_verification`
-
-**Description:** Validates if authentication token is still valid.
-
-**Request:**
-```bash
-curl --location 'https://alhomaidhigroup.com/wp-json/alhomaidhiapp/v2/token_verification' \
-  --header 'Cookie: pll_language=en' \
-  --form 'token="963841642FjxmU6oUoMZ9e82gT9PBTVWqjCph70pta4NUx0TTPtXcqQfFQu"' \
-  --form 'user_id="66"'
-```
-
-**Request Body (form-data):**
-- `token` (string, required) - Authentication token
-- `user_id` (string, required) - User ID
-
-**Response:**
-```json
-{
-  "message": "success",
-  "status": "DELAPP00"
-}
-```
-
-**Status Codes:**
-- `DELAPP00` - Token is valid
-- Other codes - Token is invalid or expired
-
-**Usage:**
-- Validate token before making authenticated API calls
-- Can be used to check if user session is still active
-
----
-
-### 4. Resend OTP
-
-**Endpoint:** `POST /resend_otp_request`
-
-**Description:** Resends OTP to user's phone number.
-
-**Request:**
-```bash
-curl --location 'https://alhomaidhigroup.com/wp-json/alhomaidhiapp/v2/resend_otp_request' \
-  --header 'Cookie: pll_language=en' \
-  --form 'phone_number="560916906"'
-```
-
-**Request Body (form-data):**
-- `phone_number` (string, required) - Phone number
-
-**Response:**
-```json
-{
-  "message": "success",
-  "status": "DELAPP00"
-}
-```
-
-**Status Codes:**
-- `DELAPP00` - Success
-- Other codes - Error
-
-**Usage:**
-- Use when user didn't receive OTP
-- Implement rate limiting (max 3 resends per hour)
+- `Authorization: {api_key}` (constant value from environment variable)
+- `phone_number: {phone_number}` (for order endpoints)
 
 ---
 
@@ -387,30 +227,30 @@ curl --location 'https://alhomaidhigroup.com/wp-json/alhomaidhiapp/v2/retrieve_p
 
 ## Order APIs
 
-### 8. List Orders
+### 5. List Orders by Phone Number
 
-**Endpoint:** `GET /list_orders`
+**Endpoint:** `GET /list_orders_temp`
 
-**Description:** Retrieves all orders for authenticated user.
+**Description:** Retrieves all orders for a user by searching with their phone number. No authentication required - uses constant API key from environment variable.
 
 **Request:**
 ```bash
-curl --location 'https://alhomaidhigroup.com/wp-json/alhomaidhiapp/v2/list_orders?sort_by=asc&search=&page=null&per_page=null' \
-  --header 'Authorization: 963841642FjxmU6oUoMZ9e82gT9PBTVWqjCph70pta4NUx0TTPtXcqQfFQu' \
-  --header 'user_id: 66' \
-  --header 'Cookie: pll_language=en'
+curl --location 'https://alhomaidhigroup.com/wp-json/alhomaidhiapp/v2/list_orders_temp?sort_by=asc&search=6361375923&page=&per_page=null' \
+  --header 'Authorization: 5N7ZI3Dh2HIKgqMPBr0mFvfF7fqReF' \
+  --header 'phone_number: 6361375923' \
+  --header 'Cookie: d_user_session=6974ac9cebc7a3c1cedbb4cbf624fbcc7f4de39b83c8a209867032aaaedd06c3e04a304fd5354926afe61a0187d993fbf4b20fad4c5c26995501f970772a12d3; pll_language=en'
 ```
 
 **Query Parameters:**
 - `sort_by` (string, optional) - "asc" or "desc" (default: "asc")
-- `search` (string, optional) - Search query
-- `page` (number, optional) - Page number (null for all)
-- `per_page` (number, optional) - Items per page (null for all)
+- `search` (string, required) - Phone number to search orders by (e.g., "6361375923")
+- `page` (string, optional) - Page number (empty string for all)
+- `per_page` (string, optional) - Items per page ("null" for all)
 
 **Headers:**
-- `Authorization` (string, required) - Token from OTP verification
-- `user_id` (string, required) - User ID from OTP verification
-- `Cookie: pll_language=en` (string) - Language preference
+- `Authorization` (string, required) - Constant API key from environment variable (e.g., `ALHOMAIDHI_ORDER_API_KEY`)
+- `phone_number` (string, required) - User's phone number (e.g., "6361375923")
+- `Cookie: pll_language=en` (string, optional) - Language preference
 
 **Response:**
 ```json
@@ -419,9 +259,9 @@ curl --location 'https://alhomaidhigroup.com/wp-json/alhomaidhiapp/v2/list_order
   "message": [
     {
       "order_details": {
-        "order_id": "#6317",
-        "order_placed_date": "2024-02-13T14:25:44",
-        "order_date_modified": "2024-02-14T00:39:49",
+        "order_id": "#6956",
+        "order_placed_date": "2024-02-28T19:42:56",
+        "order_date_modified": "2024-02-28T22:32:35",
         "order_status": "wc-completed",
         "total": "1.15",
         "total_tax": "0.15",
@@ -430,21 +270,21 @@ curl --location 'https://alhomaidhigroup.com/wp-json/alhomaidhiapp/v2/list_order
         "cart_tax": "0.15"
       },
       "billing_details": {
-        "first_name": "Abul Aala",
-        "last_name": "Ali",
-        "company": "",
-        "address_1": "P.O. Box 385038, Riyadh 11355, Saudi Arabia",
-        "address_2": "",
-        "city": "Riyadh",
+        "first_name": "kahkashan",
+        "last_name": "shaik custm",
+        "company": "Standardtouch",
+        "address_1": "1-1165/5e, Firsttttt Floor123",
+        "address_2": "Glass House, Aiwan-E-Shahi Areaaa",
+        "city": "Diriyah",
         "state": "",
-        "postcode": "11355",
-        "email": "abul.aala@standardtouch.com",
-        "phone": "+966560916906"
+        "postcode": "585104",
+        "email": "kahkashan+test@standardtouch.com",
+        "phone": "+9666361375923"
       },
       "payment_details": {
-        "payment_method": "hyperpay",
-        "payment_method_title": "Hyperpay Gateway",
-        "date_paid": "2024-02-13T14:28:37",
+        "payment_method": "clickpay_all",
+        "payment_method_title": "Online payments powered by ClickPay",
+        "date_paid": "2024-02-28T19:43:55",
         "pay_latter_link": ""
       },
       "items": [
@@ -468,7 +308,7 @@ curl --location 'https://alhomaidhigroup.com/wp-json/alhomaidhiapp/v2/list_order
 **Response Fields:**
 
 **Order Details:**
-- `order_id` (string) - Order ID (format: "#6317")
+- `order_id` (string) - Order ID (format: "#6956")
 - `order_placed_date` (string) - ISO timestamp
 - `order_date_modified` (string) - ISO timestamp
 - `order_status` (string) - WooCommerce status:
@@ -482,10 +322,12 @@ curl --location 'https://alhomaidhigroup.com/wp-json/alhomaidhiapp/v2/list_order
 - `total` (string) - Total amount
 - `total_tax` (string) - Total tax
 - `discount_total` (string) - Discount amount
+- `discount_tax` (string) - Discount tax
 - `cart_tax` (string) - Cart tax
 
 **Billing Details:**
 - `first_name`, `last_name` (string) - Customer name
+- `company` (string) - Company name
 - `address_1`, `address_2` (string) - Address
 - `city`, `state`, `postcode` (string) - Location
 - `email`, `phone` (string) - Contact info
@@ -500,7 +342,8 @@ curl --location 'https://alhomaidhigroup.com/wp-json/alhomaidhiapp/v2/list_order
 - `item_name` (string) - Product name
 - `product_id` (number) - Product ID
 - `quantity` (number) - Quantity
-- `subtotal`, `total` (string) - Amounts
+- `subtotal`, `subtotal_tax` (string) - Subtotal amounts
+- `total`, `total_tax` (string) - Total amounts
 - `sku` (string) - Product SKU
 - `image` (string) - Product image URL
 
@@ -508,60 +351,15 @@ curl --location 'https://alhomaidhigroup.com/wp-json/alhomaidhiapp/v2/list_order
 - `APP00` - Success
 
 **Usage:**
-- Get all orders for authenticated user
+- Get all orders for a user by phone number
 - Display order list to user
-- Filter by order status or date
+- Filter orders by phone number (via `search` parameter)
+- No OTP or authentication required
 
----
-
-### 9. Get Single Order
-
-**Endpoint:** `GET /retrieve_order`
-
-**Description:** Retrieves detailed information for a single order.
-
-**Request:**
-```bash
-curl --location 'https://alhomaidhigroup.com/wp-json/alhomaidhiapp/v2/retrieve_order?order_id=6317' \
-  --header 'Authorization: 963841642FjxmU6oUoMZ9e82gT9PBTVWqjCph70pta4NUx0TTPtXcqQfFQu' \
-  --header 'user_id: 66' \
-  --header 'Cookie: pll_language=en'
-```
-
-**Query Parameters:**
-- `order_id` (number or string, required) - Order ID (with or without "#" prefix)
-
-**Headers:**
-- `Authorization` (string, required) - Token from OTP verification
-- `user_id` (string, required) - User ID from OTP verification
-- `Cookie: pll_language=en` (string) - Language preference
-
-**Response:**
-```json
-{
-  "status": "APP00",
-  "message": {
-    "order_details": { ... },
-    "billing_details": { ... },
-    "payment_details": { ... },
-    "items": [ ... ]
-  }
-}
-```
-
-**Response Structure:** Same as list_orders, but `message` is a single object (not array).
-
-**Status Codes:**
-- `APP00` - Success
-
-**Usage:**
-- Get detailed order information
-- Track specific order by order ID
-- Display order details to user
-
-**Order ID Format:**
-- Accepts: "6317" or "#6317"
-- API handles both formats
+**Notes:**
+- The `Authorization` header uses a constant API key stored in environment variables
+- The `phone_number` header must match the `search` query parameter
+- Returns an array of orders - filter by order_id in the response if user asks for a specific order
 
 ---
 
@@ -570,25 +368,25 @@ curl --location 'https://alhomaidhigroup.com/wp-json/alhomaidhiapp/v2/retrieve_o
 ### Order Tracking Flow
 
 ```
-1. User: "Track order #6317"
+1. User: "Track order #6317" or "Show my orders"
    ↓
-2. Check if user is authenticated (has token)
+2. Extract phone number from user's WhatsApp message
    ↓
-3. If not authenticated:
-   a. Call POST /number_verification (send OTP)
-   b. Send OTP to user via WhatsApp
-   c. Wait for user to provide OTP
-   d. Call POST /otp_verification
-   e. Store token and user_id
+3. Call GET /list_orders_temp?sort_by=asc&search={phone_number}&page=&per_page=null
+   Headers:
+   - Authorization: {ALHOMAIDHI_ORDER_API_KEY} (from env)
+   - phone_number: {phone_number}
    ↓
-4. If authenticated:
-   a. Validate token: POST /token_verification
-   b. If invalid, re-authenticate
+4. API returns array of orders for that phone number
    ↓
-5. Call GET /retrieve_order?order_id=6317
-   (with Authorization header)
+5. If user specified order ID (e.g., "#6317"):
+   - Filter response array to find matching order_id
+   - Display that specific order
    ↓
-6. Format and send order details to user
+6. If user asked for all orders:
+   - Display list of all orders
+   ↓
+7. Format and send order details to user
 ```
 
 ### Product Search Flow
@@ -622,59 +420,51 @@ curl --location 'https://alhomaidhigroup.com/wp-json/alhomaidhiapp/v2/retrieve_o
 
 **Success Codes:**
 - `APP00` - Success (Product/Order APIs)
-- `DELAPP00` - Success (OTP/Auth APIs)
 
 **Error Codes:**
 - To be documented based on API responses
 
 ### Common Errors
 
-1. **Invalid Token**
-   - Response: Non-`DELAPP00` status
-   - Action: Re-authenticate user
-
-2. **Invalid OTP**
-   - Response: Non-`DELAPP00` status
-   - Action: Allow retry or resend OTP
-
-3. **Order Not Found**
+1. **Order Not Found**
    - Response: Empty message array or error
-   - Action: Inform user order not found
+   - Action: Inform user order not found or no orders exist for this phone number
 
-4. **Product Not Found**
+2. **Product Not Found**
    - Response: Empty message array
    - Action: Suggest alternative search terms
+
+3. **Invalid API Key**
+   - Response: 401 Unauthorized or error status
+   - Action: Check environment variable configuration
 
 ---
 
 ## Rate Limiting
 
 **Recommendations:**
-- OTP requests: Max 3 per hour per phone number
 - API calls: Implement caching where possible
 - Product search: Cache popular searches
-- Order lookup: Cache recent orders
+- Order lookup: Cache recent orders by phone number
 
 ---
 
 ## Security Considerations
 
-1. **Token Storage**
-   - Store tokens securely (encrypted)
-   - Implement token expiration
-   - Validate tokens before use
+1. **API Key Storage**
+   - Store API key in environment variables (e.g., `ALHOMAIDHI_ORDER_API_KEY`)
+   - Never expose in client-side code or logs
+   - Use constant value from environment for order API calls
 
 2. **Phone Number Format**
-   - Remove country code prefix for API calls
+   - Use phone number as provided by WhatsApp (may include country code)
+   - Pass phone number in both `search` query parameter and `phone_number` header
    - Store full number with country code internally
 
-3. **API Key**
-   - Store in environment variables
-   - Never expose in client-side code
-
-4. **Error Messages**
+3. **Error Messages**
    - Don't expose sensitive information
    - Generic error messages for users
+   - Don't reveal API key in error responses
 
 ---
 

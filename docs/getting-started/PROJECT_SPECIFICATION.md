@@ -123,41 +123,37 @@
 
 ---
 
-### 4. Order Tracking with OTP Authentication
+### 4. Order Tracking
 
 **Status:** ✅ **Feasible** (API Integration Confirmed)
 
 **Description:**
-- Users can track orders by providing order number
-- System sends OTP to user's phone number via Alhomaidhi API
-- OTP is delivered via SMS/email, then sent to user via WhatsApp
-- User must verify OTP before receiving order details
-- Secure authentication prevents unauthorized access
+- Users can track orders by providing order number or asking to see all orders
+- System searches orders by user's phone number (from WhatsApp)
+- No OTP or authentication required - uses constant API key
+- Orders are identified by phone number automatically
 
 **Technical Implementation:**
-- **OTP API:** Alhomaidhi Group API handles OTP generation and delivery
+- **Order API:** Alhomaidhi Group API endpoint for order lookup
 - **API Endpoints:**
-  - `POST /number_verification` - Send OTP
-  - `POST /otp_verification` - Verify OTP and get token
-  - `POST /token_verification` - Validate token
-  - `POST /resend_otp_request` - Resend OTP
-  - `GET /list_orders` - List all user orders
-  - `GET /retrieve_order?order_id={id}` - Get single order details
-- **Authentication:** Token-based authentication after OTP verification
-- **Token Storage:** Store token and user_id for authenticated requests
-- **Order Lookup:** Use authenticated API calls to fetch order details
+  - `GET /list_orders_temp?search={phone_number}` - List all orders by phone number
+- **Authentication:** Constant API key from environment variable (no user authentication)
+- **Order Lookup:** Search orders by phone number, filter by order_id if specified
 
 **Implementation Flow:**
 ```
-1. User: "Track order #6317"
-2. Check if user has valid token:
-   - If yes: Validate token → Fetch order
-   - If no: Proceed to authentication
-3. Authentication Flow:
-   a. Call POST /number_verification (phone_number)
-   b. API sends OTP via SMS/email
-   c. Send OTP to user via WhatsApp: "Your OTP is: 123456"
-   d. Wait for user input: "123456"
+1. User: "Track order #6317" or "Show my orders"
+2. Extract phone number from user's WhatsApp message
+3. Call GET /list_orders_temp?search={phone_number}
+   Headers:
+   - Authorization: {ALHOMAIDHI_ORDER_API_KEY} (constant from env)
+   - phone_number: {phone_number}
+4. API returns array of orders for that phone number
+5. If order_id specified:
+   - Filter array to find matching order
+   - Display specific order details
+6. If no order_id specified:
+   - Display all orders for the user
    e. Call POST /otp_verification (phone_number, otp_code)
    f. Receive token and user_id
    g. Store token and user_id

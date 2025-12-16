@@ -109,15 +109,19 @@ User replies to message → Webhook with replied_to_message_id
 
 ### Order Tracking Flow
 ```
-User: "Track order #12345"
+User: "Track order #12345" or "Show my orders"
   ↓
-Bot: "Verifying identity. Sending OTP..."
+Extract phone number from WhatsApp message
   ↓
-Generate OTP → Store → Send via WhatsApp
+Call GET /list_orders_temp?search={phone_number}
+  (with constant API key from env)
   ↓
-User: "123456"
+API returns orders for that phone number
   ↓
-Verify OTP → Fetch Order → Send Details
+If order_id specified: Filter and show specific order
+If not: Show all orders
+  ↓
+Send order details to user
 ```
 
 ### FAQ Flow
@@ -162,7 +166,7 @@ Notify AI Sensy → Human Agent Takes Over
 
 ## Database Collections/Tables
 
-1. **user_sessions** - User sessions and state (token, feedback counts, language)
+1. **user_sessions** - User sessions and state (feedback counts, language)
 2. **conversation_messages** - Recent messages (last 20 per user, auto-cleanup)
 3. **feedback** - User feedback records
 4. **faqs** - FAQ metadata (with AI suggestions)
@@ -171,10 +175,7 @@ Notify AI Sensy → Human Agent Takes Over
 - Store last 20 messages per user in `conversation_messages`
 - Auto-cleanup older messages (keep last 20)
 - Used for context, AI FAQ suggestions, analytics
-2. **feedback** - User feedback records
-3. **otps** - OTP codes for order tracking
-4. **faqs_metadata** - FAQ metadata (embeddings in vector DB)
-5. **products** - Product catalog (if separate DB)
+- No OTP storage needed (orders use phone number lookup)
 
 ## Environment Variables Needed
 
@@ -184,8 +185,8 @@ AISENSY_API_KEY=
 AISENSY_PROJECT_ID=
 PINECONE_API_KEY=
 DATABASE_URL=
-ORDER_API_URL=
-PRODUCT_API_URL=
+ALHOMAIDHI_API_KEY=          # For product/brand endpoints
+ALHOMAIDHI_ORDER_API_KEY=    # For order endpoint (constant value)
 ```
 
 ## Key Decisions Needed
