@@ -12,9 +12,17 @@ import type OpenAI from "openai";
  */
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
-  content: string;
+  content: string | null;
   tool_call_id?: string;
   name?: string;
+  tool_calls?: Array<{
+    id: string;
+    type: "function";
+    function: {
+      name: string;
+      arguments: string;
+    };
+  }>;
 }
 
 /**
@@ -76,10 +84,34 @@ export class OpenAIService {
 
       const requestParams: any = {
         model,
-        messages: messages.map(msg => ({
-          role: msg.role,
-          content: msg.content
-        })),
+        messages: messages.map(msg => {
+          const baseMessage: any = {
+            role: msg.role,
+            content: msg.content ?? null
+          };
+          
+          // Include tool_call_id for tool messages
+          if (msg.role === "tool" && msg.tool_call_id) {
+            baseMessage.tool_call_id = msg.tool_call_id;
+            if (msg.name) {
+              baseMessage.name = msg.name;
+            }
+          }
+          
+          // Include tool_calls for assistant messages (required for tool message flow)
+          if (msg.role === "assistant" && msg.tool_calls) {
+            baseMessage.tool_calls = msg.tool_calls.map(tc => ({
+              id: tc.id,
+              type: tc.type,
+              function: {
+                name: tc.function.name,
+                arguments: tc.function.arguments
+              }
+            }));
+          }
+          
+          return baseMessage;
+        }),
         temperature: options?.temperature ?? 0.7,
       };
 

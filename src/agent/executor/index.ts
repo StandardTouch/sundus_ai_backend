@@ -3,21 +3,30 @@
  * Routes tool calls to appropriate executors
  */
 
-import { executeProductTool } from "./product.executor.js";
+import { executeProductTool, type ProductToolResult } from "./product.executor.js";
 import { logger } from "../../utils/logger.js";
 import type OpenAI from "openai";
+
+/**
+ * Tool execution result with metadata
+ */
+export interface ToolExecutionResult {
+  tool_call_id: string;
+  role: "tool";
+  name: string;
+  content: string;
+  metadata?: {
+    products?: any[];
+    isSingleProduct?: boolean;
+  };
+}
 
 /**
  * Execute tool call
  */
 export async function executeTool(
   toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall
-): Promise<{
-  tool_call_id: string;
-  role: "tool";
-  name: string;
-  content: string;
-}> {
+): Promise<ToolExecutionResult> {
   const { id, function: func } = toolCall;
   const { name, arguments: argsStr } = func;
 
@@ -37,10 +46,11 @@ export async function executeTool(
   logger.info("Executing tool", { toolName: name, args });
 
   // Route to appropriate executor based on tool name prefix
-  let result: { success: boolean; result: any; error?: string };
+  let result: { success: boolean; result: any; error?: string; products?: any[]; isSingleProduct?: boolean };
 
   if (name.startsWith("search_products") || name.startsWith("get_product_details") || name.startsWith("list_brands")) {
-    result = await executeProductTool(name, args);
+    const productResult = await executeProductTool(name, args);
+    result = productResult;
   } else {
     // Add other tool executors here as they are implemented
     result = {
@@ -55,11 +65,20 @@ export async function executeTool(
     ? result.result
     : JSON.stringify({ error: result.error || "Tool execution failed" });
 
+  // Include product metadata for image sending
+  const metadata = (name.startsWith("search_products") || name.startsWith("get_product_details")) && result.products
+    ? {
+        products: result.products,
+        isSingleProduct: result.isSingleProduct
+      }
+    : undefined;
+
   return {
     tool_call_id: id,
     role: "tool",
     name,
-    content: typeof content === "string" ? content : JSON.stringify(content)
+    content: typeof content === "string" ? content : JSON.stringify(content),
+    ...(metadata && { metadata })
   };
 }
 

@@ -32,7 +32,22 @@ export class ProductService {
         return [];
       }
 
-      return response.message || [];
+      const products = response.message || [];
+      
+      // Log image data for debugging
+      products.forEach((product, index) => {
+        logger.info("Product images from API", {
+          query,
+          productIndex: index,
+          productId: product.product_details?.product_id,
+          productName: product.product_details?.name,
+          imageCount: product.images?.length || 0,
+          firstImageSrc: product.images?.[0]?.src,
+          hasImages: !!(product.images && product.images.length > 0)
+        });
+      });
+
+      return products;
     } catch (error) {
       logger.error("Product service searchProducts error", { error, query });
       throw error;
@@ -51,7 +66,21 @@ export class ProductService {
         return null;
       }
 
-      return response.message || null;
+      const product = response.message || null;
+      
+      // Log image data for debugging
+      if (product) {
+        logger.info("Product images from API (single product)", {
+          productId,
+          productName: product.product_details?.name,
+          imageCount: product.images?.length || 0,
+          firstImageSrc: product.images?.[0]?.src,
+          hasImages: !!(product.images && product.images.length > 0),
+          allImageSrcs: product.images?.map(img => img.src) || []
+        });
+      }
+
+      return product;
     } catch (error) {
       logger.error("Product service getProductDetails error", { error, productId });
       throw error;
@@ -79,6 +108,7 @@ export class ProductService {
 
   /**
    * Format product for AI response
+   * WhatsApp-friendly formatting (no markdown links)
    */
   formatProductForAI(product: Product): string {
     const details = product.product_details;
@@ -86,37 +116,38 @@ export class ProductService {
     const imageCount = product.images.length;
     const productUrl = `https://alhomaidhigroup.com/product/${details.slug}`;
 
-    let formatted = `Product: ${details.name}\n`;
+    // WhatsApp-friendly format: use * for bold, plain URLs
+    let formatted = `*${details.name}*\n\n`;
     formatted += `SKU: ${details.sku}\n`;
     
     if (brandNames) {
-      formatted += `Brand(s): ${brandNames}\n`;
+      formatted += `Brand: ${brandNames}\n`;
     }
 
     formatted += `Price: ${details.price} SAR\n`;
     
     if (details.on_sale && details.sale_price) {
       formatted += `Original Price: ${details.regular_price} SAR\n`;
-      formatted += `Sale Price: ${details.sale_price} SAR\n`;
+      formatted += `Sale Price: *${details.sale_price} SAR*\n`;
       if (details.discount_percentage) {
         formatted += `Discount: ${details.discount_percentage}\n`;
       }
     }
 
-    formatted += `Stock: ${details.stock_status === "instock" ? "In Stock" : "Out of Stock"}\n`;
+    formatted += `Stock: ${details.stock_status === "instock" ? "✅ In Stock" : "❌ Out of Stock"}\n`;
     
     if (details.stock_quantity > 0) {
       formatted += `Available Quantity: ${details.stock_quantity}\n`;
     }
 
     if (details.short_description) {
-      formatted += `\nDescription: ${details.short_description}\n`;
+      formatted += `\n${details.short_description}\n`;
     }
 
-    formatted += `\n🛒 Purchase Link:\n${productUrl}\n`;
+    formatted += `\n🛒 Purchase: ${productUrl}`;
     
     if (imageCount > 0) {
-      formatted += `\n(${imageCount} image${imageCount > 1 ? "s" : ""} available)`;
+      formatted += `\n\n(${imageCount} image${imageCount > 1 ? "s" : ""} available)`;
     }
 
     return formatted;
@@ -124,6 +155,7 @@ export class ProductService {
 
   /**
    * Format multiple products for AI response
+   * WhatsApp-friendly formatting (no markdown links)
    */
   formatProductsForAI(products: Product[], maxProducts: number = 5): string {
     if (!products || products.length === 0) {
@@ -136,7 +168,16 @@ export class ProductService {
       const brandNames = product.brands.map(b => b.name).join(", ");
       const productUrl = `https://alhomaidhigroup.com/product/${details.slug}`;
 
-      return `${index + 1}. ${details.name} (SKU: ${details.sku})${brandNames ? ` - ${brandNames}` : ""}\n   Price: ${details.price} SAR\n   🛒 Purchase: ${productUrl}`;
+      // WhatsApp-friendly format: plain text with emojis, no markdown
+      let productText = `${index + 1}. *${details.name}*\n`;
+      productText += `   SKU: ${details.sku}\n`;
+      if (brandNames) {
+        productText += `   Brand: ${brandNames}\n`;
+      }
+      productText += `   Price: ${details.price} SAR\n`;
+      productText += `   🛒 ${productUrl}`;
+      
+      return productText;
     });
 
     let result = `Found ${products.length} product${products.length > 1 ? "s" : ""}:\n\n`;

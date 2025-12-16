@@ -5,6 +5,18 @@
 
 import { productService } from "../../services/product.service.js";
 import { logger } from "../../utils/logger.js";
+import type { Product } from "../../api/alhomaidhi/product.api.js";
+
+/**
+ * Product tool result with metadata
+ */
+export interface ProductToolResult {
+  success: boolean;
+  result: any;
+  error?: string;
+  products?: Product[]; // Store product data for image sending
+  isSingleProduct?: boolean; // True if single product, false if multiple
+}
 
 /**
  * Execute product tool
@@ -12,7 +24,7 @@ import { logger } from "../../utils/logger.js";
 export async function executeProductTool(
   toolName: string,
   args: any
-): Promise<{ success: boolean; result: any; error?: string }> {
+): Promise<ProductToolResult> {
   try {
     logger.info("Executing product tool", { toolName, args });
 
@@ -72,11 +84,15 @@ export async function executeProductTool(
           };
         }
 
-        const formatted = productService.formatProductsForAI(products, 5);
+        // For multiple products, just return a brief summary - images will be sent separately with full details
+        const productCount = products.length;
+        const briefSummary = `Found ${productCount} product${productCount > 1 ? "s" : ""} matching your search. Product images with full details (name, SKU, price, and purchase links) will be sent separately.`;
 
         return {
           success: true,
-          result: formatted
+          result: briefSummary,
+          products: products,
+          isSingleProduct: false // Multiple products
         };
       }
 
@@ -128,14 +144,16 @@ export async function executeProductTool(
             validRelated.forEach((p, i) => {
               const details = p.product_details;
               const relatedUrl = `https://alhomaidhigroup.com/product/${details.slug}`;
-              result += `${i + 1}. ${details.name} - ${details.price} SAR\n   🛒 ${relatedUrl}\n`;
+              result += `${i + 1}. *${details.name}*\n   Price: ${details.price} SAR\n   🛒 ${relatedUrl}\n`;
             });
           }
         }
 
         return {
           success: true,
-          result: result
+          result: result,
+          products: [product], // Single product
+          isSingleProduct: true
         };
       }
 
