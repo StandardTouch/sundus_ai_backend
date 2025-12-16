@@ -112,7 +112,13 @@ export class AlhomaidhiProductAPI {
         params.per_page = options.per_page;
       }
 
-      const response = await this.client.get<ProductListResponse>("/list_products", { params });
+      // Add explicit timeout wrapper to enforce timeout
+      const response = await Promise.race([
+        this.client.get<ProductListResponse>("/list_products", { params }),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error("Alhomaidhi API timeout")), alhomaidhiConfig.timeout)
+        )
+      ]);
 
       logger.info("Alhomaidhi product search successful", {
         query,
@@ -132,9 +138,15 @@ export class AlhomaidhiProductAPI {
    */
   async getProductDetails(productId: number): Promise<ProductDetailResponse> {
     try {
-      const response = await this.client.get<ProductDetailResponse>("/retrieve_product", {
-        params: { product_id: productId }
-      });
+      // Add explicit timeout wrapper to enforce timeout
+      const response = await Promise.race([
+        this.client.get<ProductDetailResponse>("/retrieve_product", {
+          params: { product_id: productId }
+        }),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error("Alhomaidhi API timeout")), alhomaidhiConfig.timeout)
+        )
+      ]);
 
       logger.info("Alhomaidhi product details retrieved", {
         productId,

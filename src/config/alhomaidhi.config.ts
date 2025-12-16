@@ -33,8 +33,9 @@ export const alhomaidhiConfig = {
 
   /**
    * Default timeout for API requests (ms)
+   * Reduced to 15 seconds to fail fast
    */
-  timeout: parseInt(process.env.ALHOMAIDHI_TIMEOUT || "30000", 10),
+  timeout: parseInt(process.env.ALHOMAIDHI_TIMEOUT || "15000", 10),
 
   /**
    * Default language for API requests

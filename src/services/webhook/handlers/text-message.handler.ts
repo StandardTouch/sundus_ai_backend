@@ -14,7 +14,7 @@ import { logger } from "../../../utils/logger.js";
 import { processGuardrails, quickGuardrailCheck } from "../../../guardrails/index.js";
 import { allTools } from "../../../agent/tools/index.js";
 import { executeTool, type ToolExecutionResult } from "../../../agent/executor/index.js";
-import type { ChatMessage } from "../../openai.service.js";
+import type { ChatMessage, ChatCompletionResult } from "../../openai.service.js";
 import type { Product } from "../../../api/alhomaidhi/product.api.js";
 
 /**
@@ -88,11 +88,21 @@ export class TextMessageHandler extends BaseMessageHandler {
 
     // First call: AI decides if it needs to call tools
     tracker.addEvent("Initial OpenAI call with tools");
-    const firstResult = await openaiService.chatCompletion(messages, {
+    // Add timeout wrapper to prevent hanging
+    const firstResultPromise = openaiService.chatCompletion(messages, {
       temperature: 0.7,
-      max_tokens: 1000, // Increased to prevent truncation
+      max_tokens: 500, // Reduced for faster responses
       tools: allTools,
       tool_choice: "auto"
+    });
+    
+    const timeoutPromise = new Promise<ChatCompletionResult>((resolve) => 
+      setTimeout(() => resolve({ success: false, error: "Request timeout. Please try again." }), 10000) // 10s timeout
+    );
+    
+    const firstResult: ChatCompletionResult = await Promise.race([firstResultPromise, timeoutPromise]).catch(error => {
+      logger.error("OpenAI first call timeout or error", { error: error.message });
+      return { success: false, error: "Request timeout. Please try again." };
     });
 
     if (!firstResult.success) {
@@ -186,9 +196,19 @@ export class TextMessageHandler extends BaseMessageHandler {
         ...toolMessages
       ];
 
-      const finalResult = await openaiService.chatCompletion(finalMessages, {
+      // Add timeout wrapper for final OpenAI call
+      const finalResultPromise = openaiService.chatCompletion(finalMessages, {
         temperature: 0.7,
-        max_tokens: 1000 // Increased to prevent truncation
+        max_tokens: 500 // Reduced for faster responses
+      });
+      
+      const finalTimeoutPromise = new Promise<ChatCompletionResult>((resolve) => 
+        setTimeout(() => resolve({ success: false, error: "Response generation timeout. Please try again." }), 15000) // 15s timeout
+      );
+      
+      const finalResult: ChatCompletionResult = await Promise.race([finalResultPromise, finalTimeoutPromise]).catch(error => {
+        logger.error("OpenAI final call timeout or error", { error: error.message });
+        return { success: false, error: "Response generation timeout. Please try again." };
       });
 
       if (!finalResult.success || !finalResult.message) {
