@@ -113,10 +113,10 @@ export class ProductService {
       formatted += `\nDescription: ${details.short_description}\n`;
     }
 
-    formatted += `\nView Product: ${productUrl}\n`;
+    formatted += `\n🛒 Purchase Link:\n${productUrl}\n`;
     
     if (imageCount > 0) {
-      formatted += `(${imageCount} image${imageCount > 1 ? "s" : ""} available)`;
+      formatted += `\n(${imageCount} image${imageCount > 1 ? "s" : ""} available)`;
     }
 
     return formatted;
@@ -126,7 +126,7 @@ export class ProductService {
    * Format multiple products for AI response
    */
   formatProductsForAI(products: Product[], maxProducts: number = 5): string {
-    if (products.length === 0) {
+    if (!products || products.length === 0) {
       return "No products found matching your search.";
     }
 
@@ -136,7 +136,7 @@ export class ProductService {
       const brandNames = product.brands.map(b => b.name).join(", ");
       const productUrl = `https://alhomaidhigroup.com/product/${details.slug}`;
 
-      return `${index + 1}. ${details.name} (SKU: ${details.sku})${brandNames ? ` - ${brandNames}` : ""}\n   Price: ${details.price} SAR\n   ${productUrl}`;
+      return `${index + 1}. ${details.name} (SKU: ${details.sku})${brandNames ? ` - ${brandNames}` : ""}\n   Price: ${details.price} SAR\n   🛒 Purchase: ${productUrl}`;
     });
 
     let result = `Found ${products.length} product${products.length > 1 ? "s" : ""}:\n\n`;

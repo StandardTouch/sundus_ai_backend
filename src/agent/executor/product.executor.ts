@@ -28,6 +28,50 @@ export async function executeProductTool(
         }
 
         const products = await productService.searchProducts(query, 5);
+        
+        // If no products found, try to find similar products
+        if (products.length === 0) {
+          // Try searching for similar terms (e.g., if searching for "Nike watch", try "watch" or "Nike")
+          const searchTerms = query.toLowerCase().split(/\s+/);
+          let similarProducts: any[] = [];
+          
+          // Try broader search with individual terms
+          for (const term of searchTerms) {
+            if (term.length > 2) { // Only search terms longer than 2 characters
+              const broaderResults = await productService.searchProducts(term, 3);
+              similarProducts = [...similarProducts, ...broaderResults];
+            }
+          }
+          
+          // Remove duplicates based on product_id
+          const uniqueSimilar = similarProducts.filter((product, index, self) =>
+            index === self.findIndex(p => p.product_details.product_id === product.product_details.product_id)
+          ).slice(0, 5);
+
+          if (uniqueSimilar.length > 0) {
+            const formatted = productService.formatProductsForAI(uniqueSimilar, 5);
+            return {
+              success: true,
+              result: `I couldn't find products matching "${query}". However, here are some similar products you might be interested in:\n\n${formatted}`
+            };
+          }
+
+          // If still no results, suggest browsing brands
+          const brands = await productService.listBrands();
+          if (brands.length > 0) {
+            const brandList = brands.slice(0, 5).map((b, i) => `${i + 1}. ${b.name}`).join("\n");
+            return {
+              success: true,
+              result: `I couldn't find products matching "${query}". We don't have that specific product in our catalog.\n\nYou might want to browse our available brands:\n${brandList}\n\nOr try searching with different keywords.`
+            };
+          }
+
+          return {
+            success: true,
+            result: `I couldn't find products matching "${query}". We don't have that specific product in our catalog. Please try searching with different keywords or ask me about our available brands.`
+          };
+        }
+
         const formatted = productService.formatProductsForAI(products, 5);
 
         return {
@@ -49,18 +93,49 @@ export async function executeProductTool(
         const product = await productService.getProductDetails(product_id);
         
         if (!product) {
+          // Try to find similar products by searching for related terms
+          // First, try to get related products if we had the original product
+          // Since we don't have it, suggest browsing or searching
+          const brands = await productService.listBrands();
+          if (brands.length > 0) {
+            const brandList = brands.slice(0, 5).map((b, i) => `${i + 1}. ${b.name}`).join("\n");
+            return {
+              success: true,
+              result: `I couldn't find a product with ID ${product_id}. We don't have that specific product in our catalog.\n\nYou might want to:\n- Browse our available brands:\n${brandList}\n- Search for products using keywords\n- Ask me about specific product categories`
+            };
+          }
+
           return {
-            success: false,
-            result: null,
-            error: `Product with ID ${product_id} not found`
+            success: true,
+            result: `I couldn't find a product with ID ${product_id}. We don't have that specific product in our catalog. Please try searching for products using keywords or ask me about our available brands.`
           };
         }
 
-        const formatted = productService.formatProductForAI(product);
+        // If product found, also check for related products
+        let result = productService.formatProductForAI(product);
+        
+        // Add related products if available
+        if (product.related_product_ids && product.related_product_ids.length > 0) {
+          const relatedProducts = await Promise.all(
+            product.related_product_ids.slice(0, 3).map(id => 
+              productService.getProductDetails(id).catch(() => null)
+            )
+          );
+          
+          const validRelated = relatedProducts.filter(p => p !== null) as any[];
+          if (validRelated.length > 0) {
+            result += "\n\nSimilar products you might like:\n";
+            validRelated.forEach((p, i) => {
+              const details = p.product_details;
+              const relatedUrl = `https://alhomaidhigroup.com/product/${details.slug}`;
+              result += `${i + 1}. ${details.name} - ${details.price} SAR\n   🛒 ${relatedUrl}\n`;
+            });
+          }
+        }
 
         return {
           success: true,
-          result: formatted
+          result: result
         };
       }
 
@@ -80,7 +155,7 @@ export async function executeProductTool(
 
         return {
           success: true,
-          result: `Available brands:\n${formatted}`
+          result: `We have ${brands.length} brand${brands.length > 1 ? "s" : ""} available:\n\n${formatted}\n\nYou can search for products from any of these brands by mentioning the brand name.`
         };
       }
 
