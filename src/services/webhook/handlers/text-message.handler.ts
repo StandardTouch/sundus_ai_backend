@@ -12,6 +12,9 @@ import type { ProcessingResult } from "../../../utils/timing.util.js";
 import type { ConversationMessage } from "../../../models/conversation-message.model.js";
 import { logger } from "../../../utils/logger.js";
 import { processGuardrails } from "../../../guardrails/index.js";
+import { allTools } from "../../../agent/tools/index.js";
+import { executeTool } from "../../../agent/executor/index.js";
+import type { ChatMessage } from "../../openai.service.js";
 
 /**
  * System prompt for the AI assistant
@@ -50,6 +53,83 @@ Remember: You represent Alhomaidhi Group, and your goal is to provide exceptiona
  * Text Message Handler
  */
 export class TextMessageHandler extends BaseMessageHandler {
+  /**
+   * Process message with tools support
+   * Handles tool calling flow: AI decides to call tools → execute tools → get final response
+   */
+  private async processWithTools(
+    userMessage: string,
+    conversationHistory: ChatMessage[],
+    tracker: TimingTracker
+  ): Promise<string | null> {
+    const messages: ChatMessage[] = [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...conversationHistory,
+      { role: "user", content: userMessage }
+    ];
+
+    // First call: AI decides if it needs to call tools
+    tracker.addEvent("Initial OpenAI call with tools");
+    const firstResult = await openaiService.chatCompletion(messages, {
+      temperature: 0.7,
+      max_tokens: 500,
+      tools: allTools,
+      tool_choice: "auto"
+    });
+
+    if (!firstResult.success) {
+      logger.error("OpenAI call failed", { error: firstResult.error });
+      return null;
+    }
+
+    // If AI wants to call tools
+    if (firstResult.tool_calls && firstResult.tool_calls.length > 0) {
+      tracker.addEvent(`Executing ${firstResult.tool_calls.length} tool call(s)`);
+      
+      // Execute all tool calls in parallel
+      const toolResults = await Promise.all(
+        firstResult.tool_calls.map(toolCall => executeTool(toolCall))
+      );
+
+      // Add assistant message with tool calls to conversation
+      const assistantMessageWithTools: ChatMessage = {
+        role: "assistant",
+        content: firstResult.message || ""
+      };
+
+      // Add tool results to conversation
+      const toolMessages: ChatMessage[] = toolResults.map(result => ({
+        role: "tool",
+        content: result.content,
+        tool_call_id: result.tool_call_id,
+        name: result.name
+      }));
+
+      // Second call: AI formats final response with tool results
+      tracker.addEvent("Getting final response from OpenAI with tool results");
+      const finalMessages: ChatMessage[] = [
+        ...messages,
+        assistantMessageWithTools,
+        ...toolMessages
+      ];
+
+      const finalResult = await openaiService.chatCompletion(finalMessages, {
+        temperature: 0.7,
+        max_tokens: 500
+      });
+
+      if (!finalResult.success || !finalResult.message) {
+        logger.error("OpenAI final response failed", { error: finalResult.error });
+        return null;
+      }
+
+      return finalResult.message;
+    }
+
+    // No tool calls - return direct response
+    return firstResult.message || null;
+  }
+
   /**
    * Handle TEXT message
    */
@@ -122,24 +202,17 @@ export class TextMessageHandler extends BaseMessageHandler {
       repliedToMessageId
     );
 
-    // Process with OpenAI (use sanitized input)
+    // Process with OpenAI (use sanitized input) - with tools support
     tracker.addEvent("Processing with OpenAI");
-    const openaiResult = await openaiService.generateResponse(
+    const aiResponse = await this.processWithTools(
       sanitizedText,
-      SYSTEM_PROMPT,
       conversationHistory,
-      {
-        temperature: 0.7,
-        max_tokens: 500
-      }
+      tracker
     );
     tracker.addEvent(`OpenAI processing completed`);
 
-    if (!openaiResult.success || !openaiResult.message) {
-      logger.error("OpenAI processing failed", {
-        phoneNumber,
-        error: openaiResult.error
-      });
+    if (!aiResponse) {
+      logger.error("OpenAI processing failed", { phoneNumber });
       
       // Fallback response
       const fallbackResponse = "I apologize, but I'm having trouble processing your message right now. Please try again in a moment.";
@@ -147,13 +220,12 @@ export class TextMessageHandler extends BaseMessageHandler {
       
       return tracker.getResult();
     }
-
-    const aiResponse = openaiResult.message;
     tracker.addEvent("AI response generated");
 
     // Calculate response time
     const totalResponseTime = tracker.getTotalTime();
-    const openaiTime = tracker.getEvents().find(e => e.event.includes("OpenAI"))?.elapsed || 0;
+    const openaiEvents = tracker.getEvents().filter(e => e.event.includes("OpenAI"));
+    const openaiTime = openaiEvents.reduce((sum, e) => sum + e.elapsed, 0);
     const processingTime = totalResponseTime - openaiTime;
 
     // Store assistant message with response time and accuracy data
@@ -164,12 +236,6 @@ export class TextMessageHandler extends BaseMessageHandler {
       openai_time_ms: Math.round(openaiTime),
       processing_time_ms: Math.round(processingTime)
     };
-    if (openaiResult.model) {
-      metadata.model = openaiResult.model;
-    }
-    if (openaiResult.usage?.total_tokens) {
-      metadata.tokens_used = openaiResult.usage.total_tokens;
-    }
     
     // Get conversation ID from stored user message
     const conversationId = storedUserMessage?.conversation_id;
@@ -188,8 +254,7 @@ export class TextMessageHandler extends BaseMessageHandler {
     if (result.success) {
       logger.info("AI response sent successfully", {
         phoneNumber,
-        messageId: result.message_id,
-        tokensUsed: openaiResult.usage?.total_tokens
+        messageId: result.message_id
       });
     } else {
       logger.error("Failed to send AI response", {

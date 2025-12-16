@@ -11,8 +11,10 @@ import type OpenAI from "openai";
  * Chat message format for OpenAI
  */
 export interface ChatMessage {
-  role: "system" | "user" | "assistant";
+  role: "system" | "user" | "assistant" | "tool";
   content: string;
+  tool_call_id?: string;
+  name?: string;
 }
 
 /**
@@ -25,6 +27,8 @@ export interface ChatCompletionOptions {
   top_p?: number;
   frequency_penalty?: number;
   presence_penalty?: number;
+  tools?: OpenAI.Chat.Completions.ChatCompletionTool[];
+  tool_choice?: "none" | "auto" | OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
 }
 
 /**
@@ -34,6 +38,7 @@ export interface ChatCompletionResult {
   success: boolean;
   message?: string;
   model?: string;
+  tool_calls?: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[];
   usage?: {
     prompt_tokens: number;
     completion_tokens: number;
@@ -91,12 +96,46 @@ export class OpenAIService {
       if (options?.presence_penalty !== undefined) {
         requestParams.presence_penalty = options.presence_penalty;
       }
+      if (options?.tools !== undefined) {
+        requestParams.tools = options.tools;
+      }
+      if (options?.tool_choice !== undefined) {
+        requestParams.tool_choice = options.tool_choice;
+      }
 
       const response = await this.client.chat.completions.create(requestParams);
 
-      const assistantMessage = response.choices[0]?.message?.content;
+      const assistantMessage = response.choices[0]?.message;
+      const content = assistantMessage?.content;
+      const toolCalls = assistantMessage?.tool_calls;
 
-      if (!assistantMessage) {
+      // If there are tool calls, return them instead of content
+      if (toolCalls && toolCalls.length > 0) {
+        logger.info("OpenAI returned tool calls", {
+          model: response.model,
+          toolCallCount: toolCalls.length,
+          toolNames: toolCalls.map(tc => tc.function.name)
+        });
+
+        const result: ChatCompletionResult = {
+          success: true,
+          model: response.model,
+          tool_calls: toolCalls
+        };
+
+        if (response.usage) {
+          result.usage = {
+            prompt_tokens: response.usage.prompt_tokens,
+            completion_tokens: response.usage.completion_tokens,
+            total_tokens: response.usage.total_tokens
+          };
+        }
+
+        return result;
+      }
+
+      // If no tool calls, return content
+      if (!content) {
         logger.warn("OpenAI returned empty response", { response });
         return {
           success: false,
@@ -107,12 +146,12 @@ export class OpenAIService {
       logger.info("OpenAI chat completion successful", {
         model: response.model,
         usage: response.usage,
-        messageLength: assistantMessage.length
+        messageLength: content.length
       });
 
       const result: ChatCompletionResult = {
         success: true,
-        message: assistantMessage,
+        message: content,
         model: response.model
       };
 
