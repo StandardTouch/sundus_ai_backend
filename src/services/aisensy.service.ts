@@ -77,7 +77,7 @@ export class AISensyService {
     phoneNumber: PhoneNumber,
     audioUrl: string
   ): Promise<AISensyResponse> {
-    return this.api.sendAudio(phoneNumber, audioUrl);
+    return this.a5N7ZI3Dh2HIKgqMPBr0mFvfF7fqReFpi.sendAudio(phoneNumber, audioUrl);
   }
 
   /**
