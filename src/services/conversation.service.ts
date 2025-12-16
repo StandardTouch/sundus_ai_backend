@@ -124,7 +124,7 @@ export class ConversationService {
         role: 'user',
         content,
         conversation_id: convId,
-        replied_to_message_id: repliedToMessageId
+        ...(repliedToMessageId && { replied_to_message_id: repliedToMessageId })
       };
 
       const message = await conversationMessageRepository.create(messageData);

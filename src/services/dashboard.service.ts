@@ -181,13 +181,13 @@ export class DashboardService {
         feedbackRepository.getCollection()
           .find({
             created_at: { $gte: currentPeriodStart },
-            original_message_id: { $exists: true, $ne: null }
+            original_message_id: { $exists: true, $ne: undefined }
           })
           .toArray(),
         feedbackRepository.getCollection()
           .find({
             created_at: { $gte: previousPeriodStart, $lt: currentPeriodStart },
-            original_message_id: { $exists: true, $ne: null }
+            original_message_id: { $exists: true, $ne: undefined }
           })
           .toArray()
       ]);

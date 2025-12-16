@@ -55,7 +55,7 @@ export class SettingsService {
       const newValue = !existing.value;
       const updated = await settingsRepository.update(key, {
         value: newValue,
-        updated_by: updatedBy
+        ...(updatedBy && { updated_by: updatedBy })
       });
 
       return {
