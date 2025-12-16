@@ -11,7 +11,7 @@ import { TimingTracker } from "../../../utils/timing.util.js";
 import type { ProcessingResult } from "../../../utils/timing.util.js";
 import type { ConversationMessage } from "../../../models/conversation-message.model.js";
 import { logger } from "../../../utils/logger.js";
-import { processGuardrails } from "../../../guardrails/index.js";
+import { processGuardrails, quickGuardrailCheck } from "../../../guardrails/index.js";
 import { allTools } from "../../../agent/tools/index.js";
 import { executeTool, type ToolExecutionResult } from "../../../agent/executor/index.js";
 import type { ChatMessage } from "../../openai.service.js";
@@ -231,57 +231,62 @@ export class TextMessageHandler extends BaseMessageHandler {
     tracker.addEvent("Text content extracted");
     logger.info("Received TEXT message", { phoneNumber, text });
 
-    // Apply guardrails
-    tracker.addEvent("Applying guardrails");
-    const guardrailResult = await processGuardrails(text);
+    // Apply guardrails (quick check first - no API calls)
+    tracker.addEvent("Applying guardrails (quick check)");
+    const quickCheck = quickGuardrailCheck(text);
     
-    if (!guardrailResult.passed) {
-      logger.warn("Guardrails blocked message", {
+    if (!quickCheck.passed) {
+      logger.warn("Guardrails blocked message (quick check)", {
         phoneNumber,
-        reason: guardrailResult.error,
-        injectionDetected: guardrailResult.injectionDetected,
-        contentFlagged: guardrailResult.contentFlagged
+        reason: quickCheck.error,
+        injectionDetected: quickCheck.injectionDetected
       });
       
       // Send safe response
-      const safeResponse = guardrailResult.error || "I can't process that request. How else can I help you?";
+      const safeResponse = quickCheck.error || "I can't process that request. How else can I help you?";
       await this.sendMessage(phoneNumber, safeResponse, tracker);
       
       return tracker.getResult();
     }
 
-    // Use sanitized input if available
-    const sanitizedText = guardrailResult.sanitizedInput || text;
+    // Use sanitized input from quick check
+    const sanitizedText = quickCheck.sanitizedInput || text;
     
-    if (guardrailResult.warnings && guardrailResult.warnings.length > 0) {
-      logger.info("Guardrail warnings", {
-        phoneNumber,
-        warnings: guardrailResult.warnings
-      });
-    }
+    // Run full moderation check in background (non-blocking)
+    // This allows response to proceed while moderation completes
+    processGuardrails(text).then(guardrailResult => {
+      if (!guardrailResult.passed && guardrailResult.contentFlagged) {
+        logger.warn("Content moderation flagged message (post-check)", {
+          phoneNumber,
+          reason: guardrailResult.error
+        });
+        // Could send follow-up or log for review, but don't block response
+      }
+    }).catch(error => {
+      logger.error("Background guardrail check error", { error, phoneNumber });
+    });
 
-    tracker.addEvent("Guardrails passed");
+    tracker.addEvent("Guardrails passed (quick check, full check in background)");
 
     // Extract message ID and reply context
     const messageId = message.id || message.messageId;
     const repliedToMessageId = message.context?.id || message.replied_to_message_id;
 
-    // Store user message (store original, but process sanitized)
-    tracker.addEvent("Storing user message");
-    const storedUserMessage = await conversationService.storeUserMessage(
-      phoneNumber,
-      messageId,
-      sanitizedText,
-      repliedToMessageId
-    );
-
-    // Get conversation history
-    tracker.addEvent("Building conversation history");
-    const conversationHistory = await conversationService.getConversationHistory(
-      phoneNumber,
-      sanitizedText,
-      repliedToMessageId
-    );
+    // Parallelize: Store user message and get conversation history simultaneously
+    tracker.addEvent("Storing user message and building conversation history (parallel)");
+    const [storedUserMessage, conversationHistory] = await Promise.all([
+      conversationService.storeUserMessage(
+        phoneNumber,
+        messageId,
+        sanitizedText,
+        repliedToMessageId
+      ),
+      conversationService.getConversationHistory(
+        phoneNumber,
+        sanitizedText,
+        repliedToMessageId
+      )
+    ]);
 
     // Process with OpenAI (use sanitized input) - with tools support
     tracker.addEvent("Processing with OpenAI");
@@ -412,54 +417,52 @@ export class TextMessageHandler extends BaseMessageHandler {
           });
           
           // Send images for each product (limit to top 5 to avoid spamming)
+          // Send images in parallel batches to improve performance
           const productsToShow = products.slice(0, 5);
-          
-          for (let i = 0; i < productsToShow.length; i++) {
-            const product = productsToShow[i];
-            if (product && product.images && product.images.length > 0) {
+          const imagePromises = productsToShow
+            .filter(product => product && product.images && product.images.length > 0)
+            .map((product, index) => {
               const firstImage = product.images[0];
-              if (firstImage && firstImage.src) {
-                // Create a detailed caption with all product information and purchase link
-                const productName = product.product_details?.name || "Product";
-                const productSku = product.product_details?.sku || "";
-                const productPrice = product.product_details?.price || "N/A";
-                const productSlug = product.product_details?.slug || "";
-                const productUrl = productSlug 
-                  ? `https://alhomaidhigroup.com/product/${productSlug}`
-                  : "";
-                
-                // Build comprehensive caption
-                let caption = `*${productName}*\n\n`;
-                if (productSku) {
-                  caption += `SKU: ${productSku}\n`;
-                }
-                caption += `Price: ${productPrice} SAR\n`;
-                if (productUrl) {
-                  caption += `\n🛒 Purchase: ${productUrl}`;
-                }
-                
-                logger.info("Sending product image with detailed caption", {
-                  phoneNumber,
-                  productIndex: i + 1,
-                  productId: product.product_details?.product_id,
-                  imageUrl: firstImage.src,
-                  productUrl,
-                  captionLength: caption.length
-                });
-                
-                await this.aisensyService.sendImageMessage(
+              if (!firstImage || !firstImage.src) return null;
+              
+              // Create a detailed caption with all product information and purchase link
+              const productName = product.product_details?.name || "Product";
+              const productSku = product.product_details?.sku || "";
+              const productPrice = product.product_details?.price || "N/A";
+              const productSlug = product.product_details?.slug || "";
+              const productUrl = productSlug 
+                ? `https://alhomaidhigroup.com/product/${productSlug}`
+                : "";
+              
+              // Build comprehensive caption
+              let caption = `*${productName}*\n\n`;
+              if (productSku) {
+                caption += `SKU: ${productSku}\n`;
+              }
+              caption += `Price: ${productPrice} SAR\n`;
+              if (productUrl) {
+                caption += `\n🛒 Purchase: ${productUrl}`;
+              }
+              
+              logger.info("Preparing product image", {
+                phoneNumber,
+                productIndex: index + 1,
+                productId: product.product_details?.product_id,
+                imageUrl: firstImage.src
+              });
+              
+              // Add small delay based on index to avoid rate limiting (staggered, but shorter)
+              return new Promise(resolve => setTimeout(resolve, index * 200))
+                .then(() => this.aisensyService.sendImageMessage(
                   phoneNumber,
                   firstImage.src,
                   caption
-                );
-                
-                // Small delay between images to avoid rate limiting
-                if (i < productsToShow.length - 1) {
-                  await new Promise(resolve => setTimeout(resolve, 500));
-                }
-              }
-            }
-          }
+                ));
+            })
+            .filter(Boolean);
+          
+          // Send all images in parallel (with staggered delays)
+          await Promise.all(imagePromises);
           
           logger.info("All product images sent for multiple products", {
             phoneNumber,
