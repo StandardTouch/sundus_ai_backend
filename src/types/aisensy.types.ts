@@ -153,20 +153,22 @@ export interface TemplateComponent {
   type: "header" | "body" | "button";
   parameters?: TemplateParameter[];
   sub_type?: "url" | "quick_reply" | "text";
-  index?: number;
+  index?: number | string; // Can be number or string (API accepts both)
 }
 
 /**
  * Template message request (HSM - Highly Structured Messages)
  */
-export interface TemplateMessageRequest extends BaseMessageRequest {
+export interface TemplateMessageRequest {
+  to: PhoneNumber;
   type: "template";
+  // Note: recipient_type is NOT included for template messages per AISensy API
   template: {
-    name: string;
     language: {
       policy: "deterministic" | "fallback";
       code: string; // e.g., "en_us", "ar", "en"
     };
+    name: string;
     components?: TemplateComponent[];
   };
 }

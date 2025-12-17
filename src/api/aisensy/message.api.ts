@@ -7,12 +7,14 @@ import axios from "axios";
 import type { AxiosInstance } from "axios";
 import type {
   MessageRequest,
+  TemplateMessageRequest,
   AISensyResponse,
   AISensyAPIResponse,
   MessageDetails,
   MessageDetailsResponse,
 } from "../../types/aisensy.types.js";
 import { aisensyConfig, validateAISensyConfig } from "../../config/aisensy.config.js";
+import { logger } from "../../utils/logger.js";
 
 /**
  * AI Sensy Message API Client
@@ -53,15 +55,46 @@ export class AISensyMessageAPI {
     try {
       const endpoint = this.getEndpoint();
       
+      // For template messages, don't include recipient_type (not in API docs)
+      // For other messages, include recipient_type
+      let requestPayload: any;
+      if (message.type === "template") {
+        // Template messages don't have recipient_type
+        requestPayload = { ...message };
+      } else {
+        requestPayload = {
+          ...message,
+          recipient_type: (message as any).recipient_type || "individual",
+        };
+      }
+      
+      // Log request for debugging (especially for templates)
+      if (message.type === "template") {
+        logger.info("Sending template message", { payload: requestPayload });
+      }
+      
       const response = await this.client.post<AISensyAPIResponse>(
         endpoint,
-        {
-          ...message,
-          recipient_type: message.recipient_type || "individual",
-        }
+        requestPayload
       );
 
       const apiResponse = response.data;
+
+      // Log full API response for debugging
+      if (message.type === "template") {
+        logger.info("Template message API response", { response: apiResponse });
+        
+        // Check for errors in response (WhatsApp might return errors even with 200 status)
+        const responseData = apiResponse as any;
+        if (responseData.errors && Array.isArray(responseData.errors) && responseData.errors.length > 0) {
+          logger.error("WhatsApp returned errors in template response", { errors: responseData.errors });
+          return {
+            success: false,
+            error: responseData.errors.map((e: any) => e.message || e.title || JSON.stringify(e)).join(", "),
+            status: response.status,
+          };
+        }
+      }
 
       return {
         success: true,
@@ -227,19 +260,109 @@ export class AISensyMessageAPI {
       index?: number;
     }>
   ): Promise<AISensyResponse> {
-    return this.sendMessage({
+    const templateMessage: TemplateMessageRequest = {
       to: phoneNumber,
       type: "template",
-      recipient_type: "individual",
       template: {
-        name: templateName,
         language: {
           policy: "deterministic",
           code: languageCode,
         },
+        name: templateName,
         components: components || [],
       },
+    };
+    return this.sendMessage(templateMessage);
+  }
+
+  /**
+   * Send mixed template message for products
+   * Template with header image, body parameters (product name, SKU, price) and URL button with slug
+   * 
+   * @param phoneNumber - Recipient phone number
+   * @param templateName - Template name (English or Arabic template name)
+   * @param languageCode - Language code ("en" for English, "ar" for Arabic)
+   * @param productImageUrl - Product image URL for header
+   * @param productName - Product name (first body parameter)
+   * @param sku - Product SKU (second body parameter)
+   * @param price - Product price (third body parameter, e.g., "450 SAR")
+   * @param productSlug - Product slug for URL button
+   * @returns AI Sensy API response
+   */
+  async sendProductTemplate(
+    phoneNumber: string,
+    templateName: string,
+    languageCode: string, // Accept any string to allow "en_us", "en_US", "en", "ar", etc.
+    productImageUrl: string,
+    productName: string,
+    sku: string,
+    price: string,
+    productSlug: string
+  ): Promise<AISensyResponse> {
+    // Match exact structure from AISensy API documentation
+    // Note: recipient_type is NOT included for template messages
+    const messagePayload: TemplateMessageRequest = {
+      to: phoneNumber,
+      type: "template",
+      template: {
+        language: {
+          policy: "deterministic",
+          code: languageCode,
+        },
+        name: templateName,
+        components: [
+          {
+            type: "header",
+            parameters: [
+              {
+                type: "image",
+                image: {
+                  link: productImageUrl,
+                },
+              },
+            ],
+          },
+          {
+            type: "body",
+            parameters: [
+              {
+                type: "text",
+                text: productName,
+              },
+              {
+                type: "text",
+                text: sku,
+              },
+              {
+                type: "text",
+                text: price,
+              },
+            ],
+          },
+          {
+            type: "button",
+            sub_type: "url",
+            index: "0",
+            parameters: [
+              {
+                type: "text",
+                text: productSlug,
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    // Log payload for debugging
+    logger.info("Sending product template", {
+      phoneNumber,
+      templateName,
+      languageCode,
+      payload: messagePayload
     });
+
+    return this.sendMessage(messagePayload);
   }
 
   /**

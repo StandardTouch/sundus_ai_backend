@@ -11,6 +11,7 @@ import { TimingTracker } from "../../../utils/timing.util.js";
 import type { ProcessingResult } from "../../../utils/timing.util.js";
 import type { ConversationMessage } from "../../../models/conversation-message.model.js";
 import { logger } from "../../../utils/logger.js";
+import { detectLanguage } from "../../../utils/language.util.js";
 import { processGuardrails, quickGuardrailCheck } from "../../../guardrails/index.js";
 import { allTools } from "../../../agent/tools/index.js";
 import { executeTool, type ToolExecutionResult } from "../../../agent/executor/index.js";
@@ -403,22 +404,30 @@ export class TextMessageHandler extends BaseMessageHandler {
     );
 
     // Send response via WhatsApp
-    // If products are available, send images accordingly
+    // If products are available, send product templates accordingly
     if (productData?.products && productData.products.length > 0) {
       const products = productData.products;
       
+      // Detect language from AI response to use correct template
+      const language = detectLanguage(aiResponse);
+      const templateName = language === 'ar' ? 'product_card_arabic' : 'product_card';
+      const languageCode = language === 'ar' ? 'ar' : 'en';
+      
       // Log product data for debugging
-      logger.info("Product data for image sending", {
+      logger.info("Product data for template sending", {
         phoneNumber,
         productCount: products.length,
-        isSingleProduct: productData.isSingleProduct
+        isSingleProduct: productData.isSingleProduct,
+        language,
+        templateName
       });
       
       if (productData.isSingleProduct) {
-        // STRICT RULE: Single product - send ALL images in separate messages, each with full details and link
+        // Single product - send brief AI message first, then product template
         const product = products[0];
-        if (!product || !product.images || product.images.length === 0) {
-          logger.error("Single product has no images - cannot send", {
+        const firstImage = product?.images?.[0];
+        if (!product || !firstImage || !firstImage.src) {
+          logger.error("Single product has no image URL - cannot send template", {
             phoneNumber,
             productId: product?.product_details?.product_id
           });
@@ -427,70 +436,62 @@ export class TextMessageHandler extends BaseMessageHandler {
           return tracker.getResult();
         }
         
-        tracker.addEvent("Sending single product images (all images separately)");
+        tracker.addEvent("Sending single product template");
         
-        // Build product details for captions
+        // First send the brief AI response
+        const textResult = await this.sendMessage(phoneNumber, aiResponse, tracker);
+        
+        if (!textResult.success) {
+          logger.error("Failed to send single product text response", {
+            phoneNumber,
+            error: textResult.error
+          });
+          return tracker.getResult();
+        }
+        
+        // Build product details for template
         const productName = product.product_details?.name || "Product";
         const productSku = product.product_details?.sku || "";
         const productPrice = product.product_details?.price || "N/A";
         const productSlug = product.product_details?.slug || "";
-        const productUrl = productSlug 
-          ? `https://alhomaidhigroup.com/product/${productSlug}`
-          : "";
         
-        // Build comprehensive caption (same for all images)
-        let caption = `*${productName}*\n\n`;
-        if (productSku) {
-          caption += `SKU: ${productSku}\n`;
-        }
-        caption += `Price: ${productPrice} SAR\n`;
-        if (productUrl) {
-          caption += `\n🛒 Purchase: ${productUrl}`;
-        }
-        
-        logger.info("Sending all single product images separately", {
+        logger.info("Sending single product template", {
           phoneNumber,
           productId: product.product_details?.product_id,
-          imageCount: product.images.length
+          templateName,
+          languageCode
         });
         
-        // Send ALL images in separate messages, each with full details
-        const imagePromises = product.images.map((image, index) => {
-          if (!image || !image.src) return null;
-          
-          // Add small delay between images to avoid rate limiting
-          return new Promise(resolve => setTimeout(resolve, index * 200))
-            .then(() => this.aisensyService.sendImageMessage(
-              phoneNumber,
-              image.src,
-              caption // Same detailed caption for all images
-            ));
-        }).filter(Boolean);
+        // Send product template
+        const templateResult = await this.aisensyService.sendProductTemplate(
+          phoneNumber,
+          templateName,
+          languageCode,
+          firstImage.src, // Product image URL
+          productName,
+          productSku,
+          productPrice,
+          productSlug
+        );
         
-        // Send all images in parallel (with staggered delays)
-        const results = await Promise.all(imagePromises);
-        
-        const successCount = results.filter(r => r && r.success).length;
-        if (successCount > 0) {
-          logger.info("Single product images sent successfully", {
+        if (templateResult.success) {
+          logger.info("Single product template sent successfully", {
             phoneNumber,
-            imagesSent: successCount,
-            totalImages: product.images.length
+            messageId: templateResult.message_id,
+            productId: product.product_details?.product_id
           });
         } else {
-          logger.error("Failed to send any product images", {
+          logger.error("Failed to send single product template", {
             phoneNumber,
-            errors: results.map(r => r?.error).filter(Boolean)
+            error: templateResult.error,
+            productId: product.product_details?.product_id
           });
-          // Fallback to text message
-          await this.sendMessage(phoneNumber, aiResponse, tracker);
         }
       } else {
-        // STRICT RULE: Multiple products - send text first, then ONE image per product in separate messages
-        // Each image MUST have full details and link in caption
-        tracker.addEvent("Sending multiple products with images");
+        // Multiple products - send brief AI message first, then product templates
+        tracker.addEvent("Sending multiple products with templates");
         
-        // First send the text response with recommendations
+        // First send the brief AI response
         const textResult = await this.sendMessage(phoneNumber, aiResponse, tracker);
         
         if (!textResult.success) {
@@ -501,30 +502,31 @@ export class TextMessageHandler extends BaseMessageHandler {
           return tracker.getResult();
         }
         
-        logger.info("Multiple products text sent, now sending images", {
+        logger.info("Multiple products text sent, now sending templates", {
           phoneNumber,
-          productCount: products.length
+          productCount: products.length,
+          templateName,
+          languageCode
         });
         
-        // STRICT: Send ONE image per product (limit to top 5 to avoid spamming)
-        // Each image MUST have full details and link
+        // Send ONE template per product (limit to top 5 to avoid spamming)
         const productsToShow = products.slice(0, 5);
         
-        // Filter products that have images (MANDATORY)
+        // Filter products that have images (MANDATORY for templates)
         const productsWithImages = productsToShow.filter(
-          product => product && product.images && product.images.length > 0
+          product => product && product.images && product.images.length > 0 && product.images[0]?.src
         );
         
         if (productsWithImages.length === 0) {
-          logger.warn("No products with images found - cannot send images", {
+          logger.warn("No products with images found - cannot send templates", {
             phoneNumber,
             totalProducts: productsToShow.length
           });
           return tracker.getResult();
         }
         
-        // Send images for each product in separate messages
-        const imagePromises = productsWithImages.map((product, index) => {
+        // Send product templates for each product in separate messages
+        const templatePromises = productsWithImages.map((product, index) => {
           const firstImage = product.images[0];
           if (!firstImage || !firstImage.src) {
             logger.warn("Product image URL missing", {
@@ -535,59 +537,47 @@ export class TextMessageHandler extends BaseMessageHandler {
             return null;
           }
           
-          // Create detailed caption with ALL product information and purchase link (MANDATORY)
+          // Extract product details
           const productName = product.product_details?.name || "Product";
           const productSku = product.product_details?.sku || "";
           const productPrice = product.product_details?.price || "N/A";
           const productSlug = product.product_details?.slug || "";
-          const productUrl = productSlug 
-            ? `https://alhomaidhigroup.com/product/${productSlug}`
-            : "";
           
-          // Build comprehensive caption (MANDATORY - must include name, SKU, price, and link)
-          let caption = `*${productName}*\n\n`;
-          if (productSku) {
-            caption += `SKU: ${productSku}\n`;
-          }
-          caption += `Price: ${productPrice} SAR\n`;
-          if (productUrl) {
-            caption += `\n🛒 Purchase: ${productUrl}`;
-          } else {
-            logger.warn("Product URL missing in caption", {
-              phoneNumber,
-              productId: product.product_details?.product_id
-            });
-          }
-          
-          logger.info("Preparing product image with mandatory details", {
+          logger.info("Preparing product template", {
             phoneNumber,
             productIndex: index + 1,
             productId: product.product_details?.product_id,
             imageUrl: firstImage.src,
-            hasUrl: !!productUrl
+            templateName,
+            languageCode
           });
           
           // Add small delay based on index to avoid rate limiting (staggered)
           return new Promise(resolve => setTimeout(resolve, index * 200))
-            .then(() => this.aisensyService.sendImageMessage(
+            .then(() => this.aisensyService.sendProductTemplate(
               phoneNumber,
-              firstImage.src,
-              caption // MANDATORY: Full details and link in caption
+              templateName,
+              languageCode,
+              firstImage.src, // Product image URL
+              productName,
+              productSku,
+              productPrice,
+              productSlug
             ));
         }).filter(Boolean);
         
-        // Send all images in parallel (with staggered delays)
-        const results = await Promise.all(imagePromises);
+        // Send all templates in parallel (with staggered delays)
+        const results = await Promise.all(templatePromises);
         
         const successCount = results.filter(r => r && r.success).length;
-        logger.info("Multiple product images sent", {
+        logger.info("Multiple product templates sent", {
           phoneNumber,
-          imagesSent: successCount,
+          templatesSent: successCount,
           totalProducts: productsWithImages.length
         });
         
         if (successCount === 0) {
-          logger.error("Failed to send any product images", {
+          logger.error("Failed to send any product templates", {
             phoneNumber,
             errors: results.map(r => r?.error).filter(Boolean)
           });

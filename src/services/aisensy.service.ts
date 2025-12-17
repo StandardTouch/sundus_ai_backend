@@ -141,6 +141,42 @@ export class AISensyService {
   }
 
   /**
+   * Send product template message (mixed template)
+   * Template with header image, body parameters (product name, SKU, price) and URL button with slug
+   * 
+   * @param phoneNumber - Recipient phone number
+   * @param templateName - Template name (English or Arabic template name)
+   * @param languageCode - Language code ("en" for English, "ar" for Arabic)
+   * @param productImageUrl - Product image URL for header
+   * @param productName - Product name (first body parameter)
+   * @param sku - Product SKU (second body parameter)
+   * @param price - Product price (third body parameter, e.g., "450 SAR")
+   * @param productSlug - Product slug for URL button
+   * @returns AI Sensy API response
+   */
+  async sendProductTemplate(
+    phoneNumber: PhoneNumber,
+    templateName: string,
+    languageCode: "en" | "ar",
+    productImageUrl: string,
+    productName: string,
+    sku: string,
+    price: string,
+    productSlug: string
+  ): Promise<AISensyResponse> {
+    return this.api.sendProductTemplate(
+      phoneNumber,
+      templateName,
+      languageCode,
+      productImageUrl,
+      productName,
+      sku,
+      price,
+      productSlug
+    );
+  }
+
+  /**
    * Get message details by message ID
    * Useful for checking message status (sent, delivered, read)
    */
