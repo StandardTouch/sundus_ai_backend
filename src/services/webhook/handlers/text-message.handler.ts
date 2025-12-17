@@ -452,7 +452,9 @@ export class TextMessageHandler extends BaseMessageHandler {
         // Build product details for template
         const productName = product.product_details?.name || "Product";
         const productSku = product.product_details?.sku || "";
-        const productPrice = product.product_details?.price || "N/A";
+        const rawPrice = product.product_details?.price || "N/A";
+        // Add "SAR" to price if not already present
+        const productPrice = rawPrice === "N/A" ? "N/A" : rawPrice.includes("SAR") ? rawPrice : `${rawPrice} SAR`;
         const productSlug = product.product_details?.slug || "";
         
         logger.info("Sending single product template", {
@@ -540,7 +542,9 @@ export class TextMessageHandler extends BaseMessageHandler {
           // Extract product details
           const productName = product.product_details?.name || "Product";
           const productSku = product.product_details?.sku || "";
-          const productPrice = product.product_details?.price || "N/A";
+          const rawPrice = product.product_details?.price || "N/A";
+          // Add "SAR" to price if not already present
+          const productPrice = rawPrice === "N/A" ? "N/A" : rawPrice.includes("SAR") ? rawPrice : `${rawPrice} SAR`;
           const productSlug = product.product_details?.slug || "";
           
           logger.info("Preparing product template", {
