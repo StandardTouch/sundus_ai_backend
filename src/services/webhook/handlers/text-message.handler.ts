@@ -212,7 +212,35 @@ export class TextMessageHandler extends BaseMessageHandler {
       });
 
       if (!finalResult.success || !finalResult.message) {
-        logger.error("OpenAI final response failed", { error: finalResult.error });
+        logger.error("OpenAI final response failed", { 
+          error: finalResult.error,
+          hasToolResults: toolResults.length > 0,
+          hasProductData: !!productData
+        });
+        
+        // If we have tool results but OpenAI failed, try to format a basic response
+        if (toolResults.length > 0 && productData && productData.products && productData.products.length > 0) {
+          const productToolResult = toolResults.find(tr => 
+            tr.name === "search_products" || tr.name === "get_product_details"
+          );
+          
+          if (productToolResult && productToolResult.content) {
+            // Use the tool result content as a fallback response
+            logger.info("Using tool result as fallback response due to OpenAI failure");
+            return {
+              message: productToolResult.content,
+              productData: productData
+            };
+          }
+          
+          // Even if tool result content is not ideal, we have product data - return brief message
+          logger.info("Returning brief message with product data despite OpenAI failure");
+          return {
+            message: `Found ${productData.products.length} product${productData.products.length > 1 ? "s" : ""} for you. Here are the details:`,
+            productData: productData
+          };
+        }
+        
         return { message: null };
       }
 
@@ -317,19 +345,36 @@ export class TextMessageHandler extends BaseMessageHandler {
     );
     tracker.addEvent(`OpenAI processing completed`);
 
-    if (!aiResult.message) {
-      logger.error("OpenAI processing failed", { phoneNumber });
-      
-      // Fallback response
-      const fallbackResponse = "I apologize, but I'm having trouble processing your message right now. Please try again in a moment.";
-      await this.sendMessage(phoneNumber, fallbackResponse, tracker);
-      
-      return tracker.getResult();
-    }
-    tracker.addEvent("AI response generated");
-    
-    const aiResponse = aiResult.message;
+    // Handle case where OpenAI failed but we might have product data
+    let aiResponse: string;
     const productData = aiResult.productData;
+    
+    if (!aiResult.message) {
+      logger.error("OpenAI processing failed - no message returned", { 
+        phoneNumber,
+        hasProductData: !!productData,
+        productCount: productData?.products?.length || 0
+      });
+      
+      // If we have product data, we can still send products with a brief message
+      if (productData && productData.products && productData.products.length > 0) {
+        logger.info("Using product data despite OpenAI failure", { 
+          phoneNumber,
+          productCount: productData.products.length
+        });
+        // Create a brief message so we can proceed to image sending
+        aiResponse = `I found ${productData.products.length} product${productData.products.length > 1 ? "s" : ""} for you. Here are the details:`;
+      } else {
+        // No product data and no message - send fallback
+        const fallbackResponse = "I apologize, but I'm having trouble processing your message right now. Please try again in a moment.";
+        await this.sendMessage(phoneNumber, fallbackResponse, tracker);
+        return tracker.getResult();
+      }
+    } else {
+      aiResponse = aiResult.message;
+    }
+    
+    tracker.addEvent("AI response generated");
 
     // Calculate response time
     const totalResponseTime = tracker.getTotalTime();
