@@ -104,6 +104,7 @@ export class TextMessageHandler extends BaseMessageHandler {
     // First call: AI decides if it needs to call tools
     tracker.addEvent("Initial OpenAI call with tools");
     // Add timeout wrapper to prevent hanging
+    // Increased timeout to 25s for production (OpenAI can be slow with tool calls)
     const firstResultPromise = openaiService.chatCompletion(messages, {
       temperature: 0.7,
       max_tokens: 500, // Reduced for faster responses
@@ -112,11 +113,21 @@ export class TextMessageHandler extends BaseMessageHandler {
     });
     
     const timeoutPromise = new Promise<ChatCompletionResult>((resolve) => 
-      setTimeout(() => resolve({ success: false, error: "Request timeout. Please try again." }), 10000) // 10s timeout
+      setTimeout(() => {
+        logger.warn("OpenAI first call timeout - request may still be processing", {
+          timeoutMs: 25000,
+          phoneNumber
+        });
+        resolve({ success: false, error: "Request timeout. Please try again." });
+      }, 25000) // 25s timeout (increased from 10s for production)
     );
     
     const firstResult: ChatCompletionResult = await Promise.race([firstResultPromise, timeoutPromise]).catch(error => {
-      logger.error("OpenAI first call timeout or error", { error: error.message });
+      logger.error("OpenAI first call error", { 
+        error: error.message,
+        phoneNumber,
+        stack: error.stack
+      });
       return { success: false, error: "Request timeout. Please try again." };
     });
 
@@ -278,17 +289,30 @@ export class TextMessageHandler extends BaseMessageHandler {
       ];
 
       // Add timeout wrapper for final OpenAI call
+      // Increased timeout to 30s for production (final response generation can be slower)
       const finalResultPromise = openaiService.chatCompletion(finalMessages, {
         temperature: 0.7,
         max_tokens: 500 // Reduced for faster responses
       });
       
       const finalTimeoutPromise = new Promise<ChatCompletionResult>((resolve) => 
-        setTimeout(() => resolve({ success: false, error: "Response generation timeout. Please try again." }), 15000) // 15s timeout
+        setTimeout(() => {
+          logger.warn("OpenAI final call timeout - request may still be processing", {
+            timeoutMs: 30000,
+            phoneNumber,
+            hasToolResults: toolResults.length > 0
+          });
+          resolve({ success: false, error: "Response generation timeout. Please try again." });
+        }, 30000) // 30s timeout (increased from 15s for production)
       );
       
       const finalResult: ChatCompletionResult = await Promise.race([finalResultPromise, finalTimeoutPromise]).catch(error => {
-        logger.error("OpenAI final call timeout or error", { error: error.message });
+        logger.error("OpenAI final call error", { 
+          error: error.message,
+          phoneNumber,
+          hasToolResults: toolResults.length > 0,
+          stack: error.stack
+        });
         return { success: false, error: "Response generation timeout. Please try again." };
       });
 
