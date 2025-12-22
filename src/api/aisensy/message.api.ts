@@ -68,9 +68,19 @@ export class AISensyMessageAPI {
         };
       }
       
-      // Log request for debugging (especially for templates)
+      // Log request for debugging (especially for templates and text messages)
       if (message.type === "template") {
         logger.info("Sending template message", { payload: requestPayload });
+      } else if (message.type === "text") {
+        const textBody = (requestPayload.text as any)?.body || "";
+        logger.info("Sending text message", { 
+          to: requestPayload.to,
+          textBody: textBody.substring(0, 100),
+          textLength: textBody.length,
+          fullTextBody: textBody, // Log full message for debugging
+          recipient_type: requestPayload.recipient_type,
+          fullPayload: JSON.stringify(requestPayload) // Log full payload
+        });
       }
       
       const response = await this.client.post<AISensyAPIResponse>(
@@ -88,6 +98,25 @@ export class AISensyMessageAPI {
         const responseData = apiResponse as any;
         if (responseData.errors && Array.isArray(responseData.errors) && responseData.errors.length > 0) {
           logger.error("WhatsApp returned errors in template response", { errors: responseData.errors });
+          return {
+            success: false,
+            error: responseData.errors.map((e: any) => e.message || e.title || JSON.stringify(e)).join(", "),
+            status: response.status,
+          };
+        }
+      } else if (message.type === "text") {
+        logger.info("Text message API response", { 
+          response: apiResponse,
+          messageId: apiResponse.messages?.[0]?.id,
+          waId: apiResponse.contacts?.[0]?.wa_id,
+          status: response.status,
+          fullResponse: JSON.stringify(apiResponse) // Log full response for debugging
+        });
+        
+        // Check for errors in text message response too
+        const responseData = apiResponse as any;
+        if (responseData.errors && Array.isArray(responseData.errors) && responseData.errors.length > 0) {
+          logger.error("WhatsApp returned errors in text message response", { errors: responseData.errors });
           return {
             success: false,
             error: responseData.errors.map((e: any) => e.message || e.title || JSON.stringify(e)).join(", "),

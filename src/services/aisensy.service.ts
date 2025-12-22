@@ -7,6 +7,7 @@
 import type { PhoneNumber, QuickReplyButton, MessageDetailsResponse } from "../types/aisensy.types.js";
 import { AISensyMessageAPI } from "../api/aisensy/message.api.js";
 import type { AISensyResponse } from "../types/aisensy.types.js";
+import { logger } from "../utils/logger.js";
 
 /**
  * AI Sensy Service
@@ -265,6 +266,85 @@ export class AISensyService {
     }>
   ): Promise<AISensyResponse> {
     return this.api.sendTemplate(phoneNumber, templateName, languageCode, components);
+  }
+
+  /**
+   * Send order tracking template
+   * 
+   * @param phoneNumber - Recipient phone number
+   * @param templateName - Template name ("order_en_new" or "order_ar_new")
+   * @param languageCode - Language code ("en" or "ar")
+   * @param customerName - Customer name ({{1}})
+   * @param orderDescription - Order description ({{2}})
+   * @param orderId - Order ID ({{3}})
+   * @param orderStatus - Order status ({{4}})
+   * @param imageUrl - Header image URL
+   */
+  async sendOrderTemplate(
+    phoneNumber: PhoneNumber,
+    templateName: string,
+    languageCode: string,
+    customerName: string,
+    orderDescription: string,
+    orderId: string,
+    orderStatus: string,
+    imageUrl: string
+  ): Promise<AISensyResponse> {
+    // Match exact structure from test script (test-order-template.ts)
+    const components = [
+      {
+        type: "header",
+        parameters: [
+          {
+            type: "image",
+            image: {
+              link: imageUrl,
+            },
+          },
+        ],
+      },
+      {
+        type: "body",
+        parameters: [
+          {
+            type: "text",
+            text: customerName, // {{1}}
+          },
+          {
+            type: "text",
+            text: orderDescription, // {{2}}
+          },
+          {
+            type: "text",
+            text: orderId, // {{3}}
+          },
+          {
+            type: "text",
+            text: orderStatus, // {{4}}
+          },
+        ],
+      },
+    ];
+
+    // Log payload for debugging (similar to product template)
+    logger.info("Sending order template", {
+      phoneNumber,
+      templateName,
+      languageCode,
+      imageUrl,
+      customerName,
+      orderDescription,
+      orderId,
+      orderStatus,
+      components: JSON.stringify(components, null, 2)
+    });
+
+    return this.sendTemplateMessage(
+      phoneNumber,
+      templateName,
+      languageCode,
+      components
+    );
   }
 }
 

@@ -143,20 +143,25 @@ export class WebhookHandlerService {
 
       tracker.addEvent("Processing complete");
       
-      // Send timing breakdown
-      const timingMessage = `⏱️ Processing Time: ${result.totalTime}ms\n${result.breakdown}`;
-      const timingResult = await this.aisensyService.sendTextMessage(phoneNumber, timingMessage);
-      
-      if (timingResult.success) {
-        logger.info("Timing message sent successfully", {
-          phoneNumber,
-          messageId: timingResult.message_id
-        });
+      // Send timing breakdown (if enabled)
+      const ENABLE_TIMING_BREAKDOWN = process.env.ENABLE_TIMING_BREAKDOWN === "true";
+      if (ENABLE_TIMING_BREAKDOWN) {
+        const timingMessage = `⏱️ Processing Time: ${result.totalTime}ms\n${result.breakdown}`;
+        const timingResult = await this.aisensyService.sendTextMessage(phoneNumber, timingMessage);
+        
+        if (timingResult.success) {
+          logger.info("Timing message sent successfully", {
+            phoneNumber,
+            messageId: timingResult.message_id
+          });
+        } else {
+          logger.error("Failed to send timing message", {
+            phoneNumber,
+            error: timingResult.error
+          });
+        }
       } else {
-        logger.error("Failed to send timing message", {
-          phoneNumber,
-          error: timingResult.error
-        });
+        logger.debug("Timing breakdown message disabled", { phoneNumber });
       }
 
       // Send campaign feedback template message

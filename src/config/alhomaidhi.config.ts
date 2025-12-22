@@ -50,5 +50,8 @@ export function validateAlhomaidhiConfig(): void {
   if (!alhomaidhiConfig.apiKey) {
     throw new Error("ALHOMAIDHI_API_KEY is required");
   }
+  if (!alhomaidhiConfig.orderApiKey) {
+    throw new Error("ALHOMAIDHI_ORDER_API_KEY is required");
+  }
 }
 

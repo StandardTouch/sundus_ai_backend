@@ -17,6 +17,8 @@ import { allTools } from "../../../agent/tools/index.js";
 import { executeTool, type ToolExecutionResult } from "../../../agent/executor/index.js";
 import type { ChatMessage, ChatCompletionResult } from "../../openai.service.js";
 import type { Product } from "../../../api/alhomaidhi/product.api.js";
+import type { Order } from "../../../api/alhomaidhi/order.api.js";
+import { orderService } from "../../order.service.js";
 
 /**
  * System prompt for the AI assistant
@@ -33,12 +35,19 @@ COMMUNICATION GUIDELINES:
 - Structure responses logically: provide a brief acknowledgment, deliver the main information, and offer additional assistance when relevant.
 - Be empathetic and patient when addressing customer concerns.
 
-CAPABILITIES:
-- Assist with product searches, specifications, and availability inquiries.
-- Help customers track their orders and provide order status updates.
-- Answer general questions about Alhomaidhi Group's services and policies.
-- Provide accurate and up-to-date information based on available data.
-- When showing multiple products, provide personalized recommendations based on the user's query, preferences, and product features (price, brand, availability, etc.).
+    CAPABILITIES:
+    - Assist with product searches, specifications, and availability inquiries.
+    - Help customers track their orders and provide order status updates. 
+    - IMPORTANT ORDER TRACKING RULES:
+      * When a user asks about their orders, you MUST use the track_order or get_order_details tool immediately.
+      * NEVER ask the user for their phone number or order number - these are automatically provided based on the phone number from which they sent the message.
+      * DEFAULT BEHAVIOR: If the user says "track my order", "where is my order", "show my order", or similar without mentioning a specific order number, use track_order to get the LATEST/MOST RECENT order automatically.
+      * SPECIFIC ORDER: If the user mentions a specific order number (e.g., "track order #6956", "where is order 7360", "status of #6956"), use get_order_details with that order ID.
+      * The phone number is automatically provided from the message sender - you can search for any order associated with that phone number.
+      * Do not ask for additional information - use the tools immediately with the automatically provided phone number.
+    - Answer general questions about Alhomaidhi Group's services and policies.
+    - Provide accurate and up-to-date information based on available data.
+    - When showing multiple products, provide personalized recommendations based on the user's query, preferences, and product features (price, brand, availability, etc.).
 
 LIMITATIONS AND BOUNDARIES:
 - If you are uncertain about an answer or lack specific information, acknowledge this honestly and suggest alternative ways to help.
@@ -79,8 +88,13 @@ export class TextMessageHandler extends BaseMessageHandler {
   private async processWithTools(
     userMessage: string,
     conversationHistory: ChatMessage[],
-    tracker: TimingTracker
-  ): Promise<{ message: string | null; productData?: { products: Product[]; isSingleProduct: boolean } }> {
+    tracker: TimingTracker,
+    phoneNumber: string
+  ): Promise<{ 
+    message: string | null; 
+    productData?: { products: Product[]; isSingleProduct: boolean };
+    orderData?: { order: any; isSingleOrder: boolean };
+  }> {
     const messages: ChatMessage[] = [
       { role: "system", content: SYSTEM_PROMPT },
       ...conversationHistory,
@@ -111,13 +125,49 @@ export class TextMessageHandler extends BaseMessageHandler {
       return { message: null };
     }
 
+    // Log OpenAI response to debug tool calling
+    logger.info("OpenAI first call response", {
+      hasMessage: !!firstResult.message,
+      messageLength: firstResult.message?.length || 0,
+      hasToolCalls: !!firstResult.tool_calls,
+      toolCallsCount: firstResult.tool_calls?.length || 0,
+      toolCalls: firstResult.tool_calls?.map(tc => ({
+        id: tc.id,
+        type: tc.type,
+        name: tc.type === "function" ? tc.function?.name : "unknown"
+      }))
+    });
+
     // If AI wants to call tools
     if (firstResult.tool_calls && firstResult.tool_calls.length > 0) {
       tracker.addEvent(`Executing ${firstResult.tool_calls.length} tool call(s)`);
       
+      // Clean phone number (remove + prefix)
+      const cleanPhoneNumber = phoneNumber.replace(/^\+/, "");
+      
       // Execute all tool calls in parallel
+      // Auto-inject phone_number for order tools if not provided
+      // Pass phoneNumber for validation to ensure users can only access their own orders
       const toolResults: ToolExecutionResult[] = await Promise.all(
-        firstResult.tool_calls.map(toolCall => executeTool(toolCall))
+        firstResult.tool_calls.map(toolCall => {
+          // Auto-inject phone_number for order tools
+          if (toolCall.type === "function" && (toolCall.function.name === "track_order" || toolCall.function.name === "get_order_details")) {
+            try {
+              const args = JSON.parse(toolCall.function.arguments);
+              if (!args.phone_number) {
+                args.phone_number = cleanPhoneNumber;
+                toolCall.function.arguments = JSON.stringify(args);
+                logger.info("Auto-injected phone number for order tool", {
+                  toolName: toolCall.function.name,
+                  phoneNumber: cleanPhoneNumber
+                });
+              }
+            } catch (error) {
+              logger.error("Failed to parse tool arguments for phone number injection", { error });
+            }
+          }
+          return executeTool(toolCall, phoneNumber);
+        })
       );
       
       // Store product data for image sending
@@ -143,6 +193,36 @@ export class TextMessageHandler extends BaseMessageHandler {
           return {
             products: searchResult.metadata.products,
             isSingleProduct: false
+          };
+        }
+        
+        return null;
+      })();
+
+      // Store order data for template sending
+      const orderData: { order: Order; isSingleOrder: boolean } | null = (() => {
+        const orderToolResults = toolResults.filter(tr => 
+          tr.name === "track_order" || tr.name === "get_order_details"
+        );
+        
+        if (orderToolResults.length === 0) return null;
+        
+        // Check if it's a single order (get_order_details) or multiple (track_order)
+        const singleOrderResult = orderToolResults.find(tr => tr.name === "get_order_details");
+        if (singleOrderResult?.metadata?.isSingleOrder && singleOrderResult.metadata.order) {
+          return {
+            order: singleOrderResult.metadata.order,
+            isSingleOrder: true
+          };
+        }
+        
+        // Multiple orders from track_order - use first order for template
+        const trackOrderResult = orderToolResults.find(tr => tr.name === "track_order");
+        if (trackOrderResult?.metadata?.orders && trackOrderResult.metadata.orders.length > 0) {
+          // For multiple orders, show the first one in template
+          return {
+            order: trackOrderResult.metadata.orders[0],
+            isSingleOrder: false
           };
         }
         
@@ -216,41 +296,107 @@ export class TextMessageHandler extends BaseMessageHandler {
         logger.error("OpenAI final response failed", { 
           error: finalResult.error,
           hasToolResults: toolResults.length > 0,
-          hasProductData: !!productData
+          hasProductData: !!productData,
+          hasOrderData: !!orderData
         });
         
-        // If we have tool results but OpenAI failed, try to format a basic response
-        if (toolResults.length > 0 && productData && productData.products && productData.products.length > 0) {
-          const productToolResult = toolResults.find(tr => 
-            tr.name === "search_products" || tr.name === "get_product_details"
+        // orderData is defined in the outer scope above
+        
+        // If we have tool results but OpenAI failed, try to use the tool result content directly
+        if (toolResults.length > 0) {
+          // Check for order tool errors first (they have specific error messages)
+          const orderToolResult = toolResults.find(tr => 
+            tr.name === "track_order" || tr.name === "get_order_details"
           );
           
-          if (productToolResult && productToolResult.content) {
-            // Use the tool result content as a fallback response
-            logger.info("Using tool result as fallback response due to OpenAI failure");
+          if (orderToolResult && orderToolResult.content) {
+            // Use the order tool error message directly
+            logger.info("Using order tool error message as fallback response");
             return {
-              message: productToolResult.content,
-              productData: productData
+              message: orderToolResult.content
             };
           }
           
-          // Even if tool result content is not ideal, we have product data - return brief message
-          logger.info("Returning brief message with product data despite OpenAI failure");
-          return {
-            message: `Found ${productData.products.length} product${productData.products.length > 1 ? "s" : ""} for you. Here are the details:`,
-            productData: productData
-          };
+          // Check for product tool results
+          if (productData && productData.products && productData.products.length > 0) {
+            const productToolResult = toolResults.find(tr => 
+              tr.name === "search_products" || tr.name === "get_product_details"
+            );
+            
+            if (productToolResult && productToolResult.content) {
+              // Use the tool result content as a fallback response
+              logger.info("Using product tool result as fallback response due to OpenAI failure");
+              return {
+                message: productToolResult.content,
+                productData: productData
+              };
+            }
+            
+            // Even if tool result content is not ideal, we have product data - return brief message
+            logger.info("Returning brief message with product data despite OpenAI failure");
+            const result: { 
+              message: string; 
+              productData: { products: Product[]; isSingleProduct: boolean };
+              orderData?: { order: Order; isSingleOrder: boolean };
+            } = {
+              message: `Found ${productData.products.length} product${productData.products.length > 1 ? "s" : ""} for you. Here are the details:`,
+              productData: productData
+            };
+            if (orderData) {
+              result.orderData = orderData;
+            }
+            return result;
+          }
+          
+          // If we have any tool result with content, use it
+          const anyToolResult = toolResults.find(tr => tr.content);
+          if (anyToolResult && anyToolResult.content) {
+            logger.info("Using tool result content as fallback response");
+            return {
+              message: anyToolResult.content
+            };
+          }
         }
         
         return { message: null };
       }
+      
+      // Check if the final response contains error information from order tools
+      // If OpenAI didn't properly format the error, use the tool result directly
+      const orderToolResult = toolResults.find(tr => 
+        tr.name === "track_order" || tr.name === "get_order_details"
+      );
+      
+      // ALWAYS use order tool error messages if they contain error keywords
+      // This ensures users get error messages even if OpenAI doesn't format them properly
+      if (orderToolResult && orderToolResult.content && 
+          (orderToolResult.content.includes("unavailable") || 
+           orderToolResult.content.includes("trouble retrieving") ||
+           orderToolResult.content.includes("trouble"))) {
+        // If the tool returned an error message, ALWAYS use it for consistency
+        logger.info("Order tool returned error message, using it directly", {
+          toolMessage: orderToolResult.content,
+          openaiMessage: finalResult.message || "null"
+        });
+        return {
+          message: orderToolResult.content
+        };
+      }
 
-      const result: { message: string; productData?: { products: Product[]; isSingleProduct: boolean } } = {
+      const result: { 
+        message: string; 
+        productData?: { products: Product[]; isSingleProduct: boolean };
+        orderData?: { order: Order; isSingleOrder: boolean };
+      } = {
         message: finalResult.message
       };
       
       if (productData) {
         result.productData = productData;
+      }
+      
+      if (orderData) {
+        result.orderData = orderData;
       }
       
       return result;
@@ -342,13 +488,15 @@ export class TextMessageHandler extends BaseMessageHandler {
     const aiResult = await this.processWithTools(
       sanitizedText,
       conversationHistory,
-      tracker
+      tracker,
+      phoneNumber
     );
     tracker.addEvent(`OpenAI processing completed`);
 
-    // Handle case where OpenAI failed but we might have product data
+    // Handle case where OpenAI failed but we might have product or order data
     let aiResponse: string;
     const productData = aiResult.productData;
+    const orderData = aiResult.orderData;
     
     if (!aiResult.message) {
       logger.error("OpenAI processing failed - no message returned", { 
@@ -373,6 +521,18 @@ export class TextMessageHandler extends BaseMessageHandler {
       }
     } else {
       aiResponse = aiResult.message;
+    }
+    
+    // Ensure we have a message to send
+    if (!aiResponse || aiResponse.trim().length === 0) {
+      logger.error("No AI response to send", { 
+        phoneNumber,
+        hasProductData: !!productData,
+        hasOrderData: !!orderData
+      });
+      const fallbackResponse = "I apologize, but I'm having trouble processing your message right now. Please try again in a moment.";
+      await this.sendMessage(phoneNumber, fallbackResponse, tracker);
+      return tracker.getResult();
     }
     
     tracker.addEvent("AI response generated");
@@ -587,21 +747,144 @@ export class TextMessageHandler extends BaseMessageHandler {
           });
         }
       }
+    } else if (orderData?.order) {
+      // Order data available - send order template
+      const order = orderData.order;
+      const language = detectLanguage(aiResponse);
+      const templateName = language === 'ar' ? 'order_ar_new' : 'order_en_new';
+      const languageCode = language === 'ar' ? 'ar' : 'en';
+      
+      // Get image from first order item, fallback to default if not available
+      let orderImageUrl = "https://alhomaidhigroup.com/wp-content/uploads/2025/12/Z3lqS1NTMmFCL1NmK0kxUzQzSE91Zz09.png"; // Default fallback
+      if (order.items && order.items.length > 0 && order.items[0].image) {
+        orderImageUrl = order.items[0].image;
+        logger.info("Using order item image for template", {
+          phoneNumber,
+          imageUrl: orderImageUrl,
+          itemName: order.items[0].item_name
+        });
+      } else {
+        logger.warn("No item image found in order, using default image", {
+          phoneNumber,
+          itemCount: order.items?.length || 0
+        });
+      }
+      
+      // Extract order details
+      const customerName = orderService.getCustomerName(order);
+      const orderDescription = language === 'ar' 
+        ? orderService.formatOrderDescriptionArabic(order)
+        : orderService.formatOrderDescription(order);
+      const orderId = order.order_details?.order_id?.replace(/^#/, "") || "";
+      const orderStatus = language === 'ar'
+        ? orderService.formatOrderStatusArabic(order.order_details?.order_status || "")
+        : orderService.formatOrderStatus(order.order_details?.order_status || "");
+      
+      logger.info("Sending order template", {
+        phoneNumber,
+        orderId,
+        templateName,
+        languageCode,
+        imageUrl: orderImageUrl,
+        hasItemImage: !!(order.items && order.items.length > 0 && order.items[0].image)
+      });
+      
+      // First send the AI response text
+      const textResult = await this.sendMessage(phoneNumber, aiResponse, tracker);
+      
+      if (!textResult.success) {
+        logger.error("Failed to send order text response", {
+          phoneNumber,
+          error: textResult.error
+        });
+        return tracker.getResult();
+      }
+      
+      // Send order template with item image (or fallback)
+      const templateResult = await this.aisensyService.sendOrderTemplate(
+        phoneNumber,
+        templateName,
+        languageCode,
+        customerName,
+        orderDescription,
+        orderId,
+        orderStatus,
+        orderImageUrl
+      );
+      
+      if (templateResult.success) {
+        logger.info("Order template sent successfully", {
+          phoneNumber,
+          messageId: templateResult.message_id,
+          orderId
+        });
+      } else {
+        logger.error("Failed to send order template", {
+          phoneNumber,
+          error: templateResult.error,
+          orderId
+        });
+      }
     } else {
-      // Multiple products or no product data - send text only (AI should recommend)
+      // No product or order data - send text only
+      logger.info("Sending text-only response", {
+        phoneNumber,
+        messageLength: aiResponse.length,
+        messagePreview: aiResponse.substring(0, 150),
+        hasProductData: !!productData,
+        hasOrderData: !!orderData
+      });
+      
       const result = await this.sendMessage(phoneNumber, aiResponse, tracker);
       
       if (result.success) {
         logger.info("AI response sent successfully", {
           phoneNumber,
           messageId: result.message_id,
-          productCount: productData?.products?.length || 0
+          messageLength: aiResponse.length,
+          productCount: productData?.products?.length || 0,
+          hasOrderData: !!orderData
         });
+        
+        // Check for re-engagement error after a delay (edge case: 24-hour window)
+        // This is handled asynchronously to avoid blocking the response
+        if (result.message_id) {
+          setTimeout(async () => {
+            try {
+              const details = await this.aisensyService.getMessageDetails(result.message_id!);
+              if (details.success && details.message && details.message.status === "FAILED") {
+                const failureResponse = details.message.failureResponse as any;
+                const isReEngagementError = 
+                  failureResponse?.code === "131047" ||
+                  failureResponse?.reason === "Re-engagement message" ||
+                  (failureResponse?.error_data?.details?.includes("24 hours") && 
+                   failureResponse?.error_data?.details?.includes("last replied"));
+                
+                if (isReEngagementError) {
+                  logger.warn("⚠️  Re-engagement error detected - 24 hour messaging window expired", {
+                    phoneNumber,
+                    messageId: result.message_id,
+                    errorCode: failureResponse?.code,
+                    errorReason: failureResponse?.reason,
+                    errorDetails: failureResponse?.error_data?.details
+                  });
+                  
+                  // Note: Since the user just sent a message, this shouldn't happen
+                  // But if it does, the next message from the user will reopen the window
+                  // We log this for monitoring purposes
+                }
+              }
+            } catch (error) {
+              // Silently fail - don't add server load
+            }
+          }, 5000); // Check once after 5 seconds
+        }
       } else {
         logger.error("Failed to send AI response", {
           phoneNumber,
           error: result.error,
-          messageId: result.message_id
+          messageId: result.message_id,
+          messageLength: aiResponse.length
         });
       }
     }
