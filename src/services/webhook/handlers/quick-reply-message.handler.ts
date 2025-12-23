@@ -11,6 +11,7 @@ import { conversationMessageRepository } from "../../../repositories/conversatio
 import { feedbackRepository } from "../../../repositories/feedback.repository.js";
 import { supportSettingsService } from "../../support-settings.service.js";
 import { detectLanguage } from "../../../utils/language.util.js";
+import { conversationService } from "../../conversation.service.js";
 
 /**
  * Feedback template names
@@ -154,7 +155,18 @@ export class QuickReplyMessageHandler extends BaseMessageHandler {
           
           const supportResult = await this.sendMessage(phoneNumber, supportMessage, tracker);
           
-          if (supportResult.success) {
+          if (supportResult.success && supportResult.message_id) {
+            // Store the support message with metadata to prevent feedback template
+            await conversationService.storeAssistantMessage(
+              phoneNumber,
+              supportResult.message_id,
+              supportMessage,
+              {
+                is_talk_to_human_response: true,
+                language: templateLanguage
+              }
+            );
+            
             logger.info("Support phone number message sent", {
               userPhoneNumber: phoneNumber,
               supportPhoneNumber,
