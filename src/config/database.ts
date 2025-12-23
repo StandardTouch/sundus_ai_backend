@@ -90,6 +90,10 @@ async function createIndexes(): Promise<void> {
     await conversationMessagesCollection.createIndex({ conversation_id: 1 }); // For conversation tracking
     await conversationMessagesCollection.createIndex({ timestamp: 1 }, { expireAfterSeconds: 7776000 }); // 90 days TTL
     await conversationMessagesCollection.createIndex({ conversation_id: 1, timestamp: -1 }); // Compound for conversation queries
+    // Analytics indexes
+    await conversationMessagesCollection.createIndex({ role: 1, timestamp: -1 }); // For filtering user/assistant messages
+    await conversationMessagesCollection.createIndex({ timestamp: -1, role: 1 }); // For time-based analytics with role filter
+    await conversationMessagesCollection.createIndex({ "metadata.response_time_ms": 1 }); // For response time analytics
 
     // Feedback collection indexes
     const feedbackCollection = db.collection("feedback");
@@ -112,6 +116,10 @@ async function createIndexes(): Promise<void> {
     await faqsCollection.createIndex({ source: 1 });
     await faqsCollection.createIndex({ is_active: 1, status: 1 }); // Compound index for active FAQs
     await faqsCollection.createIndex({ usage_count: -1 }); // For popular FAQs
+    // Analytics indexes
+    await faqsCollection.createIndex({ last_used_at: -1 }); // For FAQ usage trends
+    await faqsCollection.createIndex({ category: 1, usage_count: -1 }); // For category analytics
+    await faqsCollection.createIndex({ is_active: 1, status: 1, usage_count: -1 }); // Compound for top FAQs
 
     // Support settings collection indexes
     const supportSettingsCollection = db.collection("support_settings");

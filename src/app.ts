@@ -16,6 +16,7 @@ import settingsRoutes from "./settings/routes/settings.routes.js";
 import { dashboardRoutes } from "./dashboard/index.js";
 import { conversationsRoutes } from "./conversations/index.js";
 import { faqRoutes } from "./faqs/index.js";
+import analyticsRoutes from "./analytics/routes/analytics.routes.js";
 
 dotenv.config();
 
@@ -43,6 +44,7 @@ app.use("/api/settings", settingsRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/conversations", conversationsRoutes);
 app.use("/api/faqs", faqRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 // Webhook endpoint (from AI Sensy)
 app.post("/", async (req: Request, res: Response) => {
