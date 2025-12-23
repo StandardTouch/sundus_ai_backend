@@ -8,6 +8,9 @@ import { getWebhookStatusController } from "../controllers/getWebhookStatus.cont
 import { toggleWebhookStatusController } from "../controllers/toggleWebhookStatus.controller.js";
 import { getSupportPhoneNumberController } from "../controllers/getSupportPhoneNumber.controller.js";
 import { updateSupportPhoneNumberController } from "../controllers/updateSupportPhoneNumber.controller.js";
+import { getAllToolsController } from "../controllers/getAllTools.controller.js";
+import { toggleToolController } from "../controllers/toggleTool.controller.js";
+import { updateToolController } from "../controllers/updateTool.controller.js";
 import { authenticate, requireAdminOrSupport } from "../../middleware/auth.middleware.js";
 
 const router = Router();
@@ -27,6 +30,15 @@ router.get("/support-phone-number", getSupportPhoneNumberController);
 
 // PUT /api/settings/support-phone-number - Update support phone number
 router.put("/support-phone-number", updateSupportPhoneNumberController);
+
+// GET /api/settings/tools - Get all tools with status
+router.get("/tools", getAllToolsController);
+
+// PUT /api/settings/tools/:toolName/toggle - Toggle tool enable/disable
+router.put("/tools/:toolName/toggle", toggleToolController);
+
+// PUT /api/settings/tools/:toolName - Update tool settings
+router.put("/tools/:toolName", updateToolController);
 
 export default router;
 

@@ -104,6 +104,14 @@
 
 ### Collection 4: `faqs`
 
+**Purpose:** Store FAQ metadata (questions, answers, categories, status, AI suggestions)
+
+**Key Features:**
+- Supports bilingual content (English and Arabic)
+- Categories MUST ALWAYS be in English
+- Links to Pinecone via `vector_id` for semantic search
+- Tracks AI-suggested FAQs with review workflow
+
 ```typescript
 {
   _id: ObjectId,
@@ -139,11 +147,12 @@
 ```
 
 **Important:** 
-- **MongoDB stores:** FAQ metadata (question, answer, category, source, status)
+- **MongoDB stores:** FAQ metadata (question, answer EN/AR, category, source, status)
 - **Pinecone stores:** Vector embeddings (for semantic search)
 - **vector_id** links MongoDB FAQ to Pinecone embedding
 - **source**: Distinguishes manual FAQs from AI-suggested ones
 - **status**: Allows admin to review AI suggestions before activating
+- **category**: MUST ALWAYS be in English, regardless of FAQ language
 
 ## Conversation Storage Decision: Hybrid Approach ✅
 
@@ -253,9 +262,10 @@ interface Feedback {
 interface FAQ {
   _id: ObjectId;
   question: string;
+  question_ar?: string;           // FAQ question (Arabic) - optional
   answer: string;
   answer_ar?: string;
-  category?: string;
+  category?: string;               // MUST ALWAYS BE IN ENGLISH
   vector_id: string;
   
   // Source & Status
@@ -278,6 +288,30 @@ interface FAQ {
   last_used_at?: Date;
   
   is_active: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
+// tool_settings collection
+interface ToolSettings {
+  _id: ObjectId;
+  tool_name: string;               // Unique tool name (e.g., "search_products", "track_order")
+  category: string;                // Tool category: "products" | "orders" | "faqs" | "general"
+  display_name: string;            // Human-readable name (e.g., "Search Products")
+  description: string;             // Tool description for admin panel
+  is_enabled: boolean;             // Whether tool is enabled (default: true)
+  updated_by?: string;             // User ID who last updated this setting
+  created_at: Date;
+  updated_at: Date;
+}
+
+// support_settings collection
+interface SupportSettings {
+  _id: ObjectId;
+  key: string;                     // Setting key (e.g., "support_phone_number")
+  value: string;                   // Setting value (string)
+  description?: string;            // Human-readable description
+  updated_by?: string;             // User ID who last updated this setting
   created_at: Date;
   updated_at: Date;
 }
@@ -305,8 +339,16 @@ db.faqs.createIndex({ status: 1 });  // For filtering pending reviews
 db.faqs.createIndex({ source: 1 });  // For filtering manual vs AI-suggested
 db.faqs.createIndex({ category: 1 });
 db.faqs.createIndex({ vector_id: 1 });  // For linking to Pinecone
-db.faqs.createIndex({ 'ai_suggestion.suggested_at': -1 });  // For reviewing new suggestions
+db.faqs.createIndex({ is_active: 1, status: 1 });  // Compound index for active FAQs
 db.faqs.createIndex({ usage_count: -1 });  // For finding popular FAQs
+
+// tool_settings
+db.tool_settings.createIndex({ tool_name: 1 }, { unique: true });  // Unique tool name
+db.tool_settings.createIndex({ category: 1 });  // For filtering by category
+db.tool_settings.createIndex({ is_enabled: 1 });  // For filtering enabled/disabled tools
+
+// support_settings
+db.support_settings.createIndex({ key: 1 }, { unique: true });  // Unique setting key
 ```
 
 ## FAQ Storage: MongoDB + Pinecone
@@ -337,6 +379,73 @@ db.faqs.createIndex({ usage_count: -1 });  // For finding popular FAQs
 - `status: "pending_review"` (initially)
 - Admin reviews and approves/rejects
 - If approved: Embedding generated → Stored in Pinecone → `status: "active"`
+
+**See:** 
+- [FAQ Storage Explanation](./FAQ_STORAGE_EXPLANATION.md) for storage details
+- [AI FAQ Suggestions](../features/AI_FAQ_SUGGESTIONS.md) for AI suggestion system
+
+### Collection 5: `tool_settings`
+
+**Purpose:** Store enable/disable settings for AI agent tools
+
+```typescript
+{
+  _id: ObjectId,
+  tool_name: string,              // Unique tool name (e.g., "search_products", "track_order")
+  category: string,               // Tool category: "products" | "orders" | "faqs" | "general"
+  display_name: string,           // Human-readable name (e.g., "Search Products")
+  description: string,            // Tool description for admin panel
+  is_enabled: boolean,            // Whether tool is enabled (default: true)
+  updated_by?: string,            // User ID who last updated this setting
+  created_at: Date,
+  updated_at: Date
+}
+```
+
+**Key Features:**
+- Admins can enable/disable individual tools from admin panel
+- Tools are automatically added to DB when first accessed (default: enabled)
+- Caching layer (1-minute TTL) for performance
+- Categories: products, orders, faqs, general
+
+**Available Tools:**
+- **Products (3):** `search_products`, `get_product_details`, `list_brands`
+- **Orders (2):** `track_order`, `get_order_details`
+- **FAQs (1):** `search_faqs`
+
+**Indexes:**
+- `tool_name: 1` (unique) - Fast lookup by tool name
+- `category: 1` - Filter by category
+- `is_enabled: 1` - Filter enabled/disabled tools
+
+**Usage:**
+- System fetches enabled tools from DB before calling OpenAI
+- Disabled tools are not sent to OpenAI (AI can't use them)
+- Changes take effect immediately (cache invalidated on update)
+
+### Collection 6: `support_settings`
+
+**Purpose:** Store support-related settings (string values)
+
+```typescript
+{
+  _id: ObjectId,
+  key: string,                    // Setting key (e.g., "support_phone_number")
+  value: string,                  // Setting value (string)
+  description?: string,           // Human-readable description
+  updated_by?: string,            // User ID who last updated this setting
+  created_at: Date,
+  updated_at: Date
+}
+```
+
+**Key Features:**
+- Stores string-based settings (different from boolean `settings` collection)
+- Currently used for: `support_phone_number`
+- Phone number sent to users when they select "Talk to Human" in feedback
+
+**Indexes:**
+- `key: 1` (unique) - Fast lookup by setting key
 
 **See:** 
 - [FAQ Storage Explanation](./FAQ_STORAGE_EXPLANATION.md) for storage details

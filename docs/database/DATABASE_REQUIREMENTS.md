@@ -37,12 +37,28 @@
 **4. FAQ Metadata**
 - Question (EN/AR)
 - Answer (EN/AR)
-- Category
+- Category (MUST be in English)
 - Vector DB ID (for Pinecone)
 - Source (manual/ai_suggested)
 - Status (active/pending_review/rejected)
 - AI suggestion details
 - Usage statistics
+- Timestamps
+
+**5. Tool Settings**
+- Tool name (unique identifier)
+- Category (products/orders/faqs/general)
+- Display name (human-readable)
+- Description
+- Enabled status (boolean)
+- Updated by (user ID)
+- Timestamps
+
+**6. Support Settings**
+- Setting key (unique identifier)
+- Setting value (string)
+- Description
+- Updated by (user ID)
 - Timestamps
 
 ### ❌ NOT Needed
@@ -124,6 +140,52 @@
 - Manual FAQs: Added by admin, immediately active
 - AI-Suggested FAQs: Generated from conversations, pending admin review
 - System continuously improves by learning from conversations
+- Categories MUST ALWAYS be in English
+
+### Tool Settings Collection
+
+```typescript
+{
+  _id: ObjectId,
+  tool_name: string,              // Unique: "search_products", "track_order", etc.
+  category: string,               // "products" | "orders" | "faqs" | "general"
+  display_name: string,           // "Search Products", "Track Order", etc.
+  description: string,            // Tool description for admin panel
+  is_enabled: boolean,            // Whether tool is enabled (default: true)
+  updated_by?: string,            // User ID who last updated
+  created_at: Date,
+  updated_at: Date
+}
+```
+
+**Available Tools (6 total):**
+- **Products:** `search_products`, `get_product_details`, `list_brands`
+- **Orders:** `track_order`, `get_order_details`
+- **FAQs:** `search_faqs`
+
+**Purpose:**
+- Admins can enable/disable tools from admin panel
+- System only sends enabled tools to OpenAI
+- Tools auto-initialize in DB when first accessed (enabled by default)
+
+### Support Settings Collection
+
+```typescript
+{
+  _id: ObjectId,
+  key: string,                    // Unique: "support_phone_number"
+  value: string,                  // Setting value (e.g., "+966 9200 09339")
+  description?: string,           // Human-readable description
+  updated_by?: string,           // User ID who last updated
+  created_at: Date,
+  updated_at: Date
+}
+```
+
+**Purpose:**
+- Stores configurable support phone number
+- Sent to users when they select "Talk to Human" in feedback template
+- Supports bilingual messages (English and Arabic)
 
 ## Environment Variables
 

@@ -13,21 +13,89 @@ import type { ConversationMessage } from "../../../models/conversation-message.m
 import { logger } from "../../../utils/logger.js";
 import { detectLanguage } from "../../../utils/language.util.js";
 import { processGuardrails, quickGuardrailCheck } from "../../../guardrails/index.js";
-import { allTools } from "../../../agent/tools/index.js";
+import { getEnabledTools } from "../../../agent/tools/index.js";
 import { executeTool, type ToolExecutionResult } from "../../../agent/executor/index.js";
 import type { ChatMessage, ChatCompletionResult } from "../../openai.service.js";
 import type { Product } from "../../../api/alhomaidhi/product.api.js";
 import type { Order } from "../../../api/alhomaidhi/order.api.js";
 import { orderService } from "../../order.service.js";
+import type OpenAI from "openai";
 
 /**
  * System prompt for the AI assistant
  */
-const SYSTEM_PROMPT = `You are Sundus AI, a professional and courteous AI assistant providing customer support for Alhomaidhi Group.
+/**
+ * Build dynamic system prompt based on enabled tools
+ */
+function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionTool[]): string {
+  const enabledToolNames = enabledTools.map(t => 
+    t.type === "function" ? t.function.name : ""
+  ).filter(Boolean);
+  
+  // Check which tool categories are available
+  const hasProductTools = enabledToolNames.some(name => 
+    name === 'search_products' || name === 'get_product_details' || name === 'list_brands'
+  );
+  const hasOrderTools = enabledToolNames.some(name => 
+    name === 'track_order' || name === 'get_order_details'
+  );
+  const hasFAQTools = enabledToolNames.some(name => 
+    name === 'search_faqs'
+  );
+
+  // Build capabilities section dynamically
+  const capabilities: string[] = [];
+  
+  if (hasProductTools) {
+    capabilities.push(`- Assist with product searches, specifications, and availability inquiries.
+    - When showing multiple products, provide personalized recommendations based on the user's query, preferences, and product features (price, brand, availability, etc.).`);
+  }
+  
+  if (hasOrderTools) {
+    capabilities.push(`- Help customers track their orders and provide order status updates.
+    - IMPORTANT ORDER TRACKING RULES:
+      * When a user asks about their orders, you MUST use the track_order or get_order_details tool immediately.
+      * NEVER ask the user for their phone number or order number - these are automatically provided based on the phone number from which they sent the message.
+      * DEFAULT BEHAVIOR: If the user says "track my order", "where is my order", "show my order", or similar without mentioning a specific order number, use track_order to get the LATEST/MOST RECENT order automatically.
+      * SPECIFIC ORDER: If the user mentions a specific order number (e.g., "track order #6956", "where is order 7360", "status of #6956"), use get_order_details with that order ID.
+      * The phone number is automatically provided from the message sender - you can search for any order associated with that phone number.
+      * Do not ask for additional information - use the tools immediately with the automatically provided phone number.`);
+  }
+  
+  if (hasFAQTools) {
+    capabilities.push(`- Answer general questions about Alhomaidhi Group's services and policies using the FAQ database.
+    - Search FAQs when users ask about policies, procedures, shipping, returns, payment, or general information.`);
+  }
+  
+  // Always available capabilities
+  capabilities.push(`- Provide accurate and up-to-date information based on available data.
+    - Answer general questions about Alhomaidhi Group's services and policies.`);
+
+  // Build limitations based on disabled tools
+  const limitations: string[] = [];
+  
+  if (!hasOrderTools) {
+    limitations.push(`- Order tracking is currently unavailable. If users ask about their orders, politely explain that order tracking is temporarily unavailable and suggest they contact support at +966 9200 09339 for assistance.`);
+  }
+  
+  if (!hasProductTools) {
+    limitations.push(`- Product search is currently unavailable. If users ask about products, politely explain that product search is temporarily unavailable and suggest they contact support for assistance.`);
+  }
+
+  // Build role description based on available tools
+  const roleParts: string[] = [];
+  if (hasProductTools) roleParts.push('product inquiries');
+  if (hasOrderTools) roleParts.push('order tracking');
+  if (hasFAQTools) roleParts.push('general customer assistance');
+  const roleDescription = roleParts.length > 0 
+    ? `specializing in ${roleParts.join(', ')}`
+    : 'providing customer support';
+
+  return `You are Sundus AI, a professional and courteous AI assistant providing customer support for Alhomaidhi Group.
 
 ROLE AND IDENTITY:
 - Your name is Sundus AI. Always introduce yourself by name when greeting users for the first time or when appropriate.
-- You are a knowledgeable customer support representative specializing in product inquiries, order tracking, and general customer assistance.
+- You are a knowledgeable customer support representative ${roleDescription}.
 
 COMMUNICATION GUIDELINES:
 - Maintain a professional, friendly, and respectful tone in all interactions.
@@ -35,24 +103,14 @@ COMMUNICATION GUIDELINES:
 - Structure responses logically: provide a brief acknowledgment, deliver the main information, and offer additional assistance when relevant.
 - Be empathetic and patient when addressing customer concerns.
 
-    CAPABILITIES:
-    - Assist with product searches, specifications, and availability inquiries.
-    - Help customers track their orders and provide order status updates. 
-    - IMPORTANT ORDER TRACKING RULES:
-      * When a user asks about their orders, you MUST use the track_order or get_order_details tool immediately.
-      * NEVER ask the user for their phone number or order number - these are automatically provided based on the phone number from which they sent the message.
-      * DEFAULT BEHAVIOR: If the user says "track my order", "where is my order", "show my order", or similar without mentioning a specific order number, use track_order to get the LATEST/MOST RECENT order automatically.
-      * SPECIFIC ORDER: If the user mentions a specific order number (e.g., "track order #6956", "where is order 7360", "status of #6956"), use get_order_details with that order ID.
-      * The phone number is automatically provided from the message sender - you can search for any order associated with that phone number.
-      * Do not ask for additional information - use the tools immediately with the automatically provided phone number.
-    - Answer general questions about Alhomaidhi Group's services and policies.
-    - Provide accurate and up-to-date information based on available data.
-    - When showing multiple products, provide personalized recommendations based on the user's query, preferences, and product features (price, brand, availability, etc.).
+CAPABILITIES:
+${capabilities.join('\n\n')}
 
 LIMITATIONS AND BOUNDARIES:
-- If you are uncertain about an answer or lack specific information, acknowledge this honestly and suggest alternative ways to help.
+${limitations.length > 0 ? limitations.join('\n') + '\n' : ''}- If you are uncertain about an answer or lack specific information, acknowledge this honestly and suggest alternative ways to help.
 - Do not speculate or provide information that may be inaccurate.
 - If a request is outside your capabilities, politely explain the limitation and offer to connect the customer with appropriate resources.
+- If a requested feature is unavailable, suggest contacting support at +966 9200 09339 for assistance.
 
 RESPONSE FORMAT:
 - Keep responses concise and focused on the customer's inquiry.
@@ -65,16 +123,17 @@ RESPONSE FORMAT:
   * Always include full URLs as plain text (e.g., https://example.com/product)
   * Use emojis sparingly and appropriately (🛒 for purchase links)
   * Keep messages under 4096 characters (WhatsApp limit)
-  * Use line breaks (\n) for readability
-- When showing multiple products from a search:
+  * Use line breaks (\\n) for readability
+${hasProductTools ? `- When showing multiple products from a search:
   * Keep the text response VERY brief - just acknowledge the search results
   * Do NOT list any product details (name, SKU, price, links) in the text message
   * Do NOT create numbered lists or bullet points of products
   * Images with full product details will be sent separately after your text response
   * Example responses: "I found 3 Aston Martin watches for you!" or "Here are some Aston Martin watches I found for you."
   * Keep it to 1-2 sentences maximum
-
+` : ''}
 Remember: You represent Alhomaidhi Group, and your goal is to provide exceptional customer service while maintaining professionalism and accuracy.`;
+}
 
 /**
  * Text Message Handler
@@ -89,27 +148,37 @@ export class TextMessageHandler extends BaseMessageHandler {
     userMessage: string,
     conversationHistory: ChatMessage[],
     tracker: TimingTracker,
-    phoneNumber: string
+    phoneNumber: string,
+    storedUserMessage?: ConversationMessage | null
   ): Promise<{ 
     message: string | null; 
     productData?: { products: Product[]; isSingleProduct: boolean };
     orderData?: { order: any; isSingleOrder: boolean };
   }> {
+    // Get enabled tools from database (respects admin settings)
+    tracker.addEvent("Getting enabled tools from database");
+    const enabledTools = await getEnabledTools();
+    tracker.addEvent(`Using ${enabledTools.length} enabled tools`);
+
+    // Build dynamic system prompt based on enabled tools
+    const systemPrompt = buildSystemPrompt(enabledTools);
+    
     const messages: ChatMessage[] = [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: systemPrompt },
       ...conversationHistory,
       { role: "user", content: userMessage }
     ];
 
     // First call: AI decides if it needs to call tools
     tracker.addEvent("Initial OpenAI call with tools");
+    
     // Add timeout wrapper to prevent hanging
     // Increased timeout to 25s for production (OpenAI can be slow with tool calls)
     const firstResultPromise = openaiService.chatCompletion(messages, {
       temperature: 0.7,
       max_tokens: 500, // Reduced for faster responses
-      tools: allTools,
-      tool_choice: "auto"
+      tools: enabledTools,
+      tool_choice: enabledTools.length > 0 ? "auto" : "none" // Disable tool calling if no tools enabled
     });
     
     const timeoutPromise = new Promise<ChatCompletionResult>((resolve) => 
@@ -178,13 +247,12 @@ export class TextMessageHandler extends BaseMessageHandler {
             }
           }
           // Get conversation ID from stored message
-          const conversationId = storedUserMessage?.conversation_id;
-          const messageId = storedUserMessage?.message_id;
+          const context = storedUserMessage ? {
+            ...(storedUserMessage.conversation_id && { conversationId: storedUserMessage.conversation_id }),
+            ...(storedUserMessage.message_id && { messageId: storedUserMessage.message_id })
+          } : undefined;
           
-          return executeTool(toolCall, phoneNumber, {
-            conversationId,
-            messageId
-          });
+          return executeTool(toolCall, phoneNumber, context);
         })
       );
       
@@ -520,7 +588,8 @@ export class TextMessageHandler extends BaseMessageHandler {
       sanitizedText,
       conversationHistory,
       tracker,
-      phoneNumber
+      phoneNumber,
+      storedUserMessage
     );
     tracker.addEvent(`OpenAI processing completed`);
 

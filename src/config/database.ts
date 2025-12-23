@@ -117,6 +117,12 @@ async function createIndexes(): Promise<void> {
     const supportSettingsCollection = db.collection("support_settings");
     await supportSettingsCollection.createIndex({ key: 1 }, { unique: true });
 
+    // Tool settings collection indexes
+    const toolSettingsCollection = db.collection("tool_settings");
+    await toolSettingsCollection.createIndex({ tool_name: 1 }, { unique: true });
+    await toolSettingsCollection.createIndex({ category: 1 });
+    await toolSettingsCollection.createIndex({ is_enabled: 1 });
+
     // Password reset OTPs collection indexes
     const passwordResetOTPsCollection = db.collection("password_reset_otps");
     await passwordResetOTPsCollection.createIndex({ email: 1, is_used: 1, is_expired: 1 });
