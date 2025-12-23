@@ -9,6 +9,8 @@ import type { ProcessingResult } from "../../../utils/timing.util.js";
 import { logger } from "../../../utils/logger.js";
 import { conversationMessageRepository } from "../../../repositories/conversation-message.repository.js";
 import { feedbackRepository } from "../../../repositories/feedback.repository.js";
+import { supportSettingsService } from "../../support-settings.service.js";
+import { detectLanguage } from "../../../utils/language.util.js";
 
 /**
  * Feedback template names
@@ -47,6 +49,7 @@ export class QuickReplyMessageHandler extends BaseMessageHandler {
     let isFeedbackReply = false;
     let repliedToMessage: any = null;
     let templateName: string | undefined = undefined;
+    let feedbackValue: 'yes' | 'no' = 'yes'; // Default to positive
 
     if (repliedToMessageId) {
       // Check if the replied-to message is the feedback template
@@ -62,7 +65,7 @@ export class QuickReplyMessageHandler extends BaseMessageHandler {
         
         // Determine feedback value from callback payload
         // Handles both English and Arabic responses
-        const feedbackValue = this.parseFeedbackValue(callbackPayload, templateName);
+        feedbackValue = this.parseFeedbackValue(callbackPayload, templateName);
         
         // Store feedback
         tracker.addEvent("Storing feedback");
@@ -130,29 +133,69 @@ export class QuickReplyMessageHandler extends BaseMessageHandler {
       }
     }
 
-    // If it's feedback, send thank you message (don't process with OpenAI)
+    // If it's feedback, send appropriate response (don't process with OpenAI)
     if (isFeedbackReply) {
-      tracker.addEvent("Sending feedback acknowledgment");
+      tracker.addEvent("Sending feedback response");
       
       // Get the template language to send appropriate response
-      const templateLanguage = repliedToMessage?.metadata?.language || 'en';
+      const templateLanguage = repliedToMessage?.metadata?.language || 
+        (templateName === FEEDBACK_TEMPLATES.arabic ? 'ar' : 'en');
       
-      const responseText = templateLanguage === 'ar' 
-        ? "شكراً لك! سعيد بمساعدتك"
-        : "Thank you! Happy to help";
-      
-      const result = await this.sendMessage(phoneNumber, responseText, tracker);
-      
-      if (result.success) {
-        logger.info("Feedback acknowledgment sent successfully", { 
-          phoneNumber,
-          language: templateLanguage
-        });
+      // If user selected "Talk to Human" (feedbackValue === 'no'), send support phone number
+      // Otherwise, send thank you message
+      if (feedbackValue === 'no') {
+        tracker.addEvent("User requested to talk to human - sending support phone number");
+        try {
+          const supportPhoneNumber = await supportSettingsService.getSupportPhoneNumber();
+          
+          const supportMessage = templateLanguage === 'ar'
+            ? `فريق الدعم لدينا متاح لمساعدتك.\n\nيرجى الاتصال بنا على ${supportPhoneNumber} للتحدث مع أحد ممثلي الدعم.`
+            : `Our support team is available to assist you.\n\nPlease call us at ${supportPhoneNumber} to speak with a representative.`;
+          
+          const supportResult = await this.sendMessage(phoneNumber, supportMessage, tracker);
+          
+          if (supportResult.success) {
+            logger.info("Support phone number message sent", {
+              userPhoneNumber: phoneNumber,
+              supportPhoneNumber,
+              language: templateLanguage
+            });
+          } else {
+            logger.error("Failed to send support phone number message", {
+              userPhoneNumber: phoneNumber,
+              error: supportResult.error
+            });
+          }
+        } catch (error: any) {
+          logger.error("Error sending support phone number message", {
+            error: error.message,
+            userPhoneNumber: phoneNumber
+          });
+          // Fallback to thank you message if support message fails
+          const responseText = templateLanguage === 'ar' 
+            ? "شكراً لك! سعيد بمساعدتك"
+            : "Thank you! Happy to help";
+          await this.sendMessage(phoneNumber, responseText, tracker);
+        }
       } else {
-        logger.error("Failed to send feedback acknowledgment", { 
-          phoneNumber, 
-          error: result.error 
-        });
+        // Positive feedback - send thank you message
+        const responseText = templateLanguage === 'ar' 
+          ? "شكراً لك! سعيد بمساعدتك"
+          : "Thank you! Happy to help";
+        
+        const result = await this.sendMessage(phoneNumber, responseText, tracker);
+        
+        if (result.success) {
+          logger.info("Feedback acknowledgment sent successfully", { 
+            phoneNumber,
+            language: templateLanguage
+          });
+        } else {
+          logger.error("Failed to send feedback acknowledgment", { 
+            phoneNumber, 
+            error: result.error 
+          });
+        }
       }
 
       return tracker.getResult();

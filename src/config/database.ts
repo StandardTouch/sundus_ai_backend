@@ -113,6 +113,10 @@ async function createIndexes(): Promise<void> {
     await faqsCollection.createIndex({ is_active: 1, status: 1 }); // Compound index for active FAQs
     await faqsCollection.createIndex({ usage_count: -1 }); // For popular FAQs
 
+    // Support settings collection indexes
+    const supportSettingsCollection = db.collection("support_settings");
+    await supportSettingsCollection.createIndex({ key: 1 }, { unique: true });
+
     // Password reset OTPs collection indexes
     const passwordResetOTPsCollection = db.collection("password_reset_otps");
     await passwordResetOTPsCollection.createIndex({ email: 1, is_used: 1, is_expired: 1 });
