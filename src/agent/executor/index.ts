@@ -5,6 +5,7 @@
 
 import { executeProductTool, type ProductToolResult } from "./product.executor.js";
 import { executeOrderTool } from "./order.executor.js";
+import { executeFAQTool } from "./faq.executor.js";
 import { logger } from "../../utils/logger.js";
 import type OpenAI from "openai";
 
@@ -30,10 +31,12 @@ export interface ToolExecutionResult {
  * Execute tool call
  * @param toolCall - The tool call from OpenAI
  * @param phoneNumber - The phone number of the user making the request (for validation)
+ * @param context - Additional context (conversationId, messageId) for smart features
  */
 export async function executeTool(
   toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall,
-  phoneNumber?: string
+  phoneNumber?: string,
+  context?: { conversationId?: string; messageId?: string }
 ): Promise<ToolExecutionResult> {
   // Type guard: ensure it's a function tool call
   if (toolCall.type !== "function") {
@@ -155,6 +158,26 @@ export async function executeTool(
       name: orderResult.name,
       content: orderResult.content,
       ...(orderResult.metadata && { metadata: orderResult.metadata })
+    };
+  } else if (name === "search_faqs") {
+    const faqContext = {
+      conversationId: context?.conversationId,
+      messageId: context?.messageId,
+      phoneNumber: phoneNumber
+    };
+    const faqResult = await executeFAQTool(name, args, faqContext);
+    
+    // Format result for OpenAI
+    // If result is null, return message indicating no FAQ found (AI will generate response)
+    const content = faqResult.success
+      ? (faqResult.result || JSON.stringify({ message: "No relevant FAQ found" }))
+      : JSON.stringify({ error: faqResult.error || "FAQ search failed" });
+
+    return {
+      tool_call_id: id,
+      role: "tool",
+      name,
+      content: typeof content === "string" ? content : JSON.stringify(content)
     };
   } else {
     // Unknown tool

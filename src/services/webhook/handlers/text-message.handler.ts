@@ -177,7 +177,14 @@ export class TextMessageHandler extends BaseMessageHandler {
               logger.error("Failed to parse tool arguments for phone number injection", { error });
             }
           }
-          return executeTool(toolCall, phoneNumber);
+          // Get conversation ID from stored message
+          const conversationId = storedUserMessage?.conversation_id;
+          const messageId = storedUserMessage?.message_id;
+          
+          return executeTool(toolCall, phoneNumber, {
+            conversationId,
+            messageId
+          });
         })
       );
       

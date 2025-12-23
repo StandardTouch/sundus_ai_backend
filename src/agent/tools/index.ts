@@ -5,6 +5,7 @@
 
 import { productTools } from "./product.tools.js";
 import { trackOrderTool, getOrderDetailsTool } from "./order.tools.js";
+import { faqTools } from "./faq.tools.js";
 
 /**
  * All available tools
@@ -14,7 +15,7 @@ export const allTools = [
   ...productTools,
   trackOrderTool,
   getOrderDetailsTool,
-  // Add FAQ tools here when implemented
+  ...faqTools,
 ];
 
 /**
@@ -23,6 +24,6 @@ export const allTools = [
 export const getToolsByCategory = {
   products: productTools,
   orders: [trackOrderTool, getOrderDetailsTool],
-  // faqs: faqTools, // When implemented
+  faqs: faqTools,
 };
 

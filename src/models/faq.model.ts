@@ -7,10 +7,11 @@ export interface FAQ {
   _id?: string;
   
   // Content
-  question: string;
-  answer: string;
-  answer_ar?: string;
-  category?: string;
+  question: string;                // FAQ question (English)
+  question_ar?: string;           // FAQ question (Arabic) - optional
+  answer: string;                 // FAQ answer (English)
+  answer_ar?: string;             // FAQ answer (Arabic) - optional
+  category?: string;              // FAQ category - MUST ALWAYS BE IN ENGLISH (e.g., "policies", "shipping", "payment", "orders")
   
   // Vector Search
   vector_id: string;  // Pinecone vector ID
@@ -42,22 +43,28 @@ export interface FAQ {
 
 /**
  * Create FAQ DTO (for manual FAQs)
+ * 
+ * IMPORTANT: category MUST ALWAYS BE IN ENGLISH (e.g., "policies", "shipping", "payment")
  */
 export interface CreateFAQDto {
   question: string;
+  question_ar?: string;
   answer: string;
   answer_ar?: string;
-  category?: string;
+  category?: string;  // MUST BE IN ENGLISH - e.g., "policies", "shipping", "payment", "orders"
 }
 
 /**
  * AI Suggested FAQ DTO
+ * 
+ * IMPORTANT: category MUST ALWAYS BE IN ENGLISH (e.g., "policies", "shipping", "payment")
  */
 export interface AISuggestedFAQDto {
   question: string;
+  question_ar?: string;
   answer: string;
   answer_ar?: string;
-  category?: string;
+  category?: string;  // MUST BE IN ENGLISH - e.g., "policies", "shipping", "payment", "orders"
   source_conversation_id?: string;
   source_message_id?: string;
   confidence_score: number;
@@ -70,6 +77,7 @@ export interface ReviewFAQDto {
   action: 'approve' | 'reject';
   review_notes?: string;
   edited_question?: string;  // Admin can edit before approving
+  edited_question_ar?: string;  // Admin can edit Arabic question before approving
   edited_answer?: string;
   edited_answer_ar?: string;
 }

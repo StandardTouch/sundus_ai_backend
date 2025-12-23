@@ -24,9 +24,10 @@ This document shows the exact data structures used in MongoDB and Pinecone, with
 {
   _id: string,                    // MongoDB ObjectId (converted to string)
   question: string,                // FAQ question (English)
+  question_ar?: string,           // FAQ question (Arabic) - optional
   answer: string,                 // FAQ answer (English)
   answer_ar?: string,             // FAQ answer (Arabic) - optional
-  category?: string,              // FAQ category - plain string (optional, e.g., "policies", "shipping", "payment")
+  category?: string,              // FAQ category - MUST ALWAYS BE IN ENGLISH (optional, e.g., "policies", "shipping", "payment", "orders")
   
   // Vector Search Link
   vector_id: string,             // Pinecone vector ID (same as _id)
@@ -65,6 +66,7 @@ This document shows the exact data structures used in MongoDB and Pinecone, with
 {
   "_id": "507f1f77bcf86cd799439011",
   "question": "What is your return policy?",
+  "question_ar": "ما هي سياسة الإرجاع الخاصة بك؟",
   "answer": "You can return items within 30 days of purchase. Items must be unused and in original packaging. Please contact customer service to initiate a return.",
   "answer_ar": "يمكنك إرجاع العناصر خلال 30 يومًا من الشراء. يجب أن تكون العناصر غير مستخدمة وفي التغليف الأصلي. يرجى الاتصال بخدمة العملاء لبدء الإرجاع.",
   "category": "policies",
@@ -87,6 +89,7 @@ This document shows the exact data structures used in MongoDB and Pinecone, with
 {
   "_id": "507f1f77bcf86cd799439012",
   "question": "How do I track my order?",
+  "question_ar": "كيف يمكنني تتبع طلبي؟",
   "answer": "You can track your order by providing your order number to our customer service team via WhatsApp. They will provide you with the current status and tracking information.",
   "answer_ar": "يمكنك تتبع طلبك من خلال تقديم رقم الطلب لفريق خدمة العملاء عبر واتساب. سيوفرون لك الحالة الحالية ومعلومات التتبع.",
   "category": "orders",
@@ -118,6 +121,7 @@ This document shows the exact data structures used in MongoDB and Pinecone, with
 {
   "_id": "507f1f77bcf86cd799439013",
   "question": "What payment methods do you accept?",
+  "question_ar": "ما هي طرق الدفع التي تقبلونها؟",
   "answer": "We accept credit cards, debit cards, and cash on delivery. All major credit cards are accepted including Visa, Mastercard, and American Express.",
   "answer_ar": "نقبل بطاقات الائتمان والخصم والدفع نقدًا عند التسليم. يتم قبول جميع بطاقات الائتمان الرئيسية بما في ذلك فيزا وماستركارد وأمريكان إكسبريس.",
   "category": "payment",
@@ -202,10 +206,12 @@ This document shows the exact data structures used in MongoDB and Pinecone, with
 ```json
 {
   "_id": "507f1f77bcf86cd799439011",
-  "content": "What is your return policy? You can return items within 30 days of purchase. Items must be unused and in original packaging. Please contact customer service to initiate a return.",
+  "content": "What is your return policy? You can return items within 30 days of purchase. Items must be unused and in original packaging. Please contact customer service to initiate a return. ما هي سياسة الإرجاع الخاصة بك؟ يمكنك إرجاع العناصر خلال 30 يومًا من الشراء. يجب أن تكون العناصر غير مستخدمة وفي التغليف الأصلي. يرجى الاتصال بخدمة العملاء لبدء الإرجاع.",
   "category": "policies"
 }
 ```
+
+**Note:** Content includes both English and Arabic (if provided) for better multilingual semantic search.
 
 **What Pinecone stores internally:**
 ```json
@@ -232,12 +238,12 @@ This document shows the exact data structures used in MongoDB and Pinecone, with
 [
   {
     "_id": "507f1f77bcf86cd799439011",
-    "content": "What is your return policy? You can return items within 30 days of purchase. Items must be unused and in original packaging. Please contact customer service to initiate a return.",
+    "content": "What is your return policy? You can return items within 30 days of purchase. Items must be unused and in original packaging. Please contact customer service to initiate a return. ما هي سياسة الإرجاع الخاصة بك؟ يمكنك إرجاع العناصر خلال 30 يومًا من الشراء.",
     "category": "policies"
   },
   {
     "_id": "507f1f77bcf86cd799439013",
-    "content": "What payment methods do you accept? We accept credit cards, debit cards, and cash on delivery. All major credit cards are accepted including Visa, Mastercard, and American Express.",
+    "content": "What payment methods do you accept? We accept credit cards, debit cards, and cash on delivery. All major credit cards are accepted including Visa, Mastercard, and American Express. ما هي طرق الدفع التي تقبلونها؟ نقبل بطاقات الائتمان والخصم والدفع نقدًا عند التسليم.",
     "category": "payment"
   },
   {
@@ -275,10 +281,10 @@ This document shows the exact data structures used in MongoDB and Pinecone, with
 
 **Step 2: Sync to Pinecone**
 ```typescript
-// Prepare FAQ for Pinecone
+// Prepare FAQ for Pinecone (includes both EN and AR for multilingual search)
 const faqRecord = {
   _id: "507f1f77bcf86cd799439016",
-  content: "Do you offer international shipping? Yes, we offer international shipping to most countries. Shipping costs and delivery times vary by location. Please contact us for specific rates.",
+  content: "Do you offer international shipping? Yes, we offer international shipping to most countries. Shipping costs and delivery times vary by location. Please contact us for specific rates. هل تقدمون شحن دولي؟ نعم، نقدم الشحن الدولي لمعظم البلدان. تختلف تكاليف الشحن وأوقات التسليم حسب الموقع.",
   category: "shipping"
 };
 
@@ -411,11 +417,12 @@ All three use the same ID to link the records.
 
 **MongoDB stores:**
 - `question`: "What is your return policy?"
+- `question_ar`: "ما هي سياسة الإرجاع الخاصة بك؟" (optional)
 - `answer`: "You can return items within 30 days..."
-- `answer_ar`: "يمكنك إرجاع العناصر..."
+- `answer_ar`: "يمكنك إرجاع العناصر..." (optional)
 
 **Pinecone stores:**
-- `content`: "What is your return policy? You can return items within 30 days..." (question + answer combined)
+- `content`: "What is your return policy? You can return items within 30 days... ما هي سياسة الإرجاع الخاصة بك؟ يمكنك إرجاع العناصر..." (question + answer + question_ar + answer_ar combined for better multilingual search)
 
 **Why combine?** The combined text provides better context for semantic search.
 
@@ -426,10 +433,11 @@ All three use the same ID to link the records.
 | Field | MongoDB | Pinecone | Purpose |
 |-------|---------|----------|---------|
 | **ID** | `_id` | `_id` | Link records |
-| **Question** | `question` | ❌ | Human-readable |
+| **Question (EN)** | `question` | ❌ | Human-readable |
+| **Question (AR)** | `question_ar` | ❌ | Human-readable (optional) |
 | **Answer (EN)** | `answer` | ❌ | Return to users |
-| **Answer (AR)** | `answer_ar` | ❌ | Return to users |
-| **Combined Text** | ❌ | `content` | For embedding |
+| **Answer (AR)** | `answer_ar` | ❌ | Return to users (optional) |
+| **Combined Text** | ❌ | `content` | For embedding (includes EN + AR for multilingual search) |
 | **Category** | `category` | `category` | Organization |
 | **Vector Embedding** | ❌ | `vector` (auto) | Semantic search |
 | **Status** | `status` | ❌ | Active/Pending/Rejected |
@@ -485,6 +493,14 @@ Format Answer → Return to user (EN or AR)
 
 **Type:** `category?: string` (optional)
 
+**⚠️ CRITICAL REQUIREMENT: Categories MUST ALWAYS BE IN ENGLISH**
+
+Regardless of whether the FAQ has Arabic content (`question_ar`, `answer_ar`), the `category` field must always be in English. This ensures:
+- Consistent filtering and querying
+- Better analytics and reporting
+- Standardized category names across the system
+- Easier integration with external systems
+
 **Why Plain String?**
 - ✅ **Flexible:** Can add new categories without code changes
 - ✅ **Simple:** No need to maintain enum/constant lists
@@ -492,9 +508,9 @@ Format Answer → Return to user (EN or AR)
 - ✅ **Admin-friendly:** Admins can type any category name
 - ✅ **AI-suggested FAQs:** AI can suggest new categories dynamically
 
-**Examples:**
+**Examples (ALL IN ENGLISH):**
 ```typescript
-// Valid categories (any string is allowed)
+// Valid categories (must be in English)
 category: "policies"
 category: "shipping"
 category: "payment"
@@ -511,6 +527,8 @@ category: null  // Optional - can be omitted
 
 Based on typical e-commerce FAQ needs:
 
+**⚠️ IMPORTANT: All categories MUST be in English, even for FAQs with Arabic content.**
+
 | Category | Description | Example FAQs |
 |----------|-------------|--------------|
 | `policies` | Company policies | Return policy, refund policy, privacy policy |
@@ -523,7 +541,7 @@ Based on typical e-commerce FAQ needs:
 | `warranty` | Warranty & support | Warranty terms, support contact |
 | `general` | General questions | About us, contact info, business hours |
 
-**Note:** These are examples only. You can use any category name that makes sense for your business.
+**Note:** These are examples only. You can use any category name that makes sense for your business, but **always use English** regardless of the FAQ's language.
 
 ---
 
