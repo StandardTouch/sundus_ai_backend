@@ -154,7 +154,8 @@ export class FAQService {
 
   /**
    * Prepare FAQ for Pinecone
-   * Combines question + answer into content field (includes both EN and AR for better semantic search)
+   * Combines question + answer into text field (includes both EN and AR for better semantic search)
+   * Note: Pinecone index with llama-text-embed-v2 expects 'text' field in field mapping
    */
   prepareFAQForPinecone(faq: FAQ): FAQRecord {
     // Combine question + answer for better semantic search
@@ -172,11 +173,21 @@ export class FAQService {
       parts.push(faq.answer_ar);
     }
     
-    const content = parts.join(" ").trim();
+    const text = parts.join(" ").trim();
+
+    // Log what's being sent to Pinecone for verification
+    logger.info("Preparing FAQ for Pinecone", {
+      faqId: faq._id,
+      hasEnglish: !!(faq.question && faq.answer),
+      hasArabicQuestion: !!faq.question_ar,
+      hasArabicAnswer: !!faq.answer_ar,
+      textLength: text.length,
+      textPreview: text.substring(0, 150) + (text.length > 150 ? "..." : "")
+    });
 
     return {
       _id: faq._id || "",
-      content,
+      text, // Pinecone index expects 'text' field (not 'content')
       category: faq.category
     };
   }

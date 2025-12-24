@@ -9,10 +9,11 @@ import { logger } from "../utils/logger.js";
 
 /**
  * FAQ record structure for Pinecone
+ * Note: Pinecone index with llama-text-embed-v2 expects 'text' field in field mapping
  */
 export interface FAQRecord {
   _id: string;
-  content: string; // Combined question + answer for embedding
+  text: string; // Combined question + answer for embedding (field name must match index field mapping)
   category?: string;
   [key: string]: any; // Additional metadata fields
 }
@@ -135,11 +136,11 @@ export class PineconeService {
           inputs: {
             text: queryText,
           },
-        },
+          },
         rerank: {
           model: "bge-reranker-v2-m3",
           topN: k,
-          rankFields: ["content"],
+          rankFields: ["text"], // Field name must match the field mapping in Pinecone index
         },
       });
 
