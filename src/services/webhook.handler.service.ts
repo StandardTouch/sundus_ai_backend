@@ -166,7 +166,7 @@ export class WebhookHandlerService {
 
       // Send campaign feedback template message
       // Detect language from the last AI response to send appropriate template
-      // Skip if the last message was a "Talk to Human" response
+      // Skip if the last message was a "Talk to Human" response or feedback acknowledgment
       tracker.addEvent("Detecting language for feedback template");
       const recentMessages = await conversationService.getRecentMessages(phoneNumber, 5);
       const lastAssistantMessage = recentMessages
@@ -176,6 +176,15 @@ export class WebhookHandlerService {
       // Check if last message was a "Talk to Human" response - skip feedback template
       if (lastAssistantMessage?.metadata?.is_talk_to_human_response === true) {
         logger.info("Skipping feedback template - last message was 'Talk to Human' response", {
+          phoneNumber,
+          lastMessageId: lastAssistantMessage.message_id
+        });
+        return tracker.getResult();
+      }
+      
+      // Check if last message was a feedback acknowledgment - skip feedback template
+      if (lastAssistantMessage?.metadata?.is_feedback_acknowledgment === true) {
+        logger.info("Skipping feedback template - last message was feedback acknowledgment", {
           phoneNumber,
           lastMessageId: lastAssistantMessage.message_id
         });

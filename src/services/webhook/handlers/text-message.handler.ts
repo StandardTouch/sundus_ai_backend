@@ -65,7 +65,13 @@ function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionT
   
   if (hasFAQTools) {
     capabilities.push(`- Answer general questions about AlHomaidhi Group's services and policies.
-    - When users ask about policies, procedures, shipping, returns, payment, or general information, search for relevant answers.
+    - MANDATORY: You MUST use the search_faqs tool when users ask about:
+      * Policies (warranties, returns, refunds, shipping, payment, etc.)
+      * Procedures (how to do something, how something works)
+      * General information about services
+      * Any question that might be covered in company documentation
+    - ALWAYS search FAQs first before providing an answer to policy or general information questions.
+    - Only provide a direct answer if the FAQ search returns no results or low confidence.
     - IMPORTANT: Never mention "FAQ database", "database", or any technical details about how you find information. Simply provide the answer naturally, or say you don't have that information if it's not available.`);
   }
   

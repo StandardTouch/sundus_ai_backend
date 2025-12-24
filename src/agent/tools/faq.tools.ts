@@ -14,7 +14,7 @@ export const faqTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "search_faqs",
-      description: "Search the FAQ database for answers to common questions about policies, procedures, shipping, returns, payment, orders, products, and general information. Use this when user asks about company policies, how to do something, general questions, wants information about procedures, or asks questions that might be covered in our FAQ database.",
+      description: "MANDATORY: Search for answers to questions about policies, warranties, procedures, shipping, returns, payment, orders, products, and general information. You MUST use this tool when users ask about company policies, warranties, how to do something, general questions, or any information that might be documented. Always search FAQs first before answering policy or general information questions.",
       parameters: {
         type: "object",
         properties: {
