@@ -11,6 +11,7 @@ import { updateSupportPhoneNumberController } from "../controllers/updateSupport
 import { getAllToolsController } from "../controllers/getAllTools.controller.js";
 import { toggleToolController } from "../controllers/toggleTool.controller.js";
 import { updateToolController } from "../controllers/updateTool.controller.js";
+import { getOpenAICreditStatusController } from "../controllers/getOpenAICreditStatus.controller.js";
 import { authenticate, requireAdminOrSupport } from "../../middleware/auth.middleware.js";
 
 const router = Router();
@@ -39,6 +40,9 @@ router.put("/tools/:toolName/toggle", toggleToolController);
 
 // PUT /api/settings/tools/:toolName - Update tool settings
 router.put("/tools/:toolName", updateToolController);
+
+// GET /api/settings/openai-credit-status - Get OpenAI credit availability status
+router.get("/openai-credit-status", getOpenAICreditStatusController);
 
 export default router;
 

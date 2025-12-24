@@ -5,6 +5,7 @@
 
 import { BaseMessageHandler } from "./base-message.handler.js";
 import { openaiService } from "../../openai.service.js";
+import { openaiCreditService } from "../../openai-credit.service.js";
 import { conversationService } from "../../conversation.service.js";
 import { conversationMessageRepository } from "../../../repositories/conversation-message.repository.js";
 import { TimingTracker } from "../../../utils/timing.util.js";
@@ -103,7 +104,7 @@ COMMUNICATION GUIDELINES:
 - Structure responses logically: provide a brief acknowledgment, deliver the main information, and offer additional assistance when relevant.
 - Be empathetic and patient when addressing customer concerns.
 
-CAPABILITIES:
+    CAPABILITIES:
 ${capabilities.join('\n\n')}
 
 LIMITATIONS AND BOUNDARIES:
@@ -174,6 +175,25 @@ export class TextMessageHandler extends BaseMessageHandler {
     
     // Add timeout wrapper to prevent hanging
     // Increased timeout to 25s for production (OpenAI can be slow with tool calls)
+    // Optional: Check if OpenAI credits are available before making API call
+    // This is a lightweight check that doesn't block if the service is unavailable
+    const creditsAvailable = await openaiCreditService.areCreditsAvailable().catch(() => true);
+    
+    if (!creditsAvailable) {
+      logger.warn("⚠️ OpenAI credits unavailable - skipping API call", { phoneNumber });
+      // Detect user language and send fun energy message
+      const userLanguage = detectLanguage(userMessage);
+      const energyMessage = userLanguage === 'ar' 
+        ? "عذرًا! طاقتي منخفضة! ⚡ أحتاج إلى دفعة سريعة للعودة لمساعدتك. سأكون جاهزًا لمساعدتك قريبًا!"
+        : "Oops! I'm running low on energy! ⚡ I need a quick boost to get back to helping you. I'll be ready to assist you soon!";
+      
+      await this.sendMessage(phoneNumber, energyMessage, tracker);
+      return {
+        ...tracker.getResult(),
+        message: null // No AI message since credits are unavailable
+      };
+    }
+
     const firstResultPromise = openaiService.chatCompletion(messages, {
       temperature: 0.7,
       max_tokens: 500, // Reduced for faster responses
@@ -362,6 +382,24 @@ export class TextMessageHandler extends BaseMessageHandler {
         assistantMessageWithTools,
         ...toolMessages
       ];
+
+      // Check credits again before final response (in case status changed)
+      const creditsStillAvailable = await openaiCreditService.areCreditsAvailable().catch(() => true);
+      
+      if (!creditsStillAvailable) {
+        logger.warn("⚠️ OpenAI credits unavailable during final response - skipping API call", { phoneNumber });
+        // Detect user language and send fun energy message
+        const userLanguage = detectLanguage(userMessage);
+        const energyMessage = userLanguage === 'ar' 
+          ? "عذرًا! طاقتي منخفضة! ⚡ أحتاج إلى دفعة سريعة للعودة لمساعدتك. سأكون جاهزًا لمساعدتك قريبًا!"
+          : "Oops! I'm running low on energy! ⚡ I need a quick boost to get back to helping you. I'll be ready to assist you soon!";
+        
+        await this.sendMessage(phoneNumber, energyMessage, tracker);
+        return {
+          ...tracker.getResult(),
+          message: null // No AI message since credits are unavailable
+        };
+      }
 
       // Add timeout wrapper for final OpenAI call
       // Increased timeout to 30s for production (final response generation can be slower)

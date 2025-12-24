@@ -5,6 +5,7 @@
 
 import { getOpenAIClient, openaiConfig } from "../config/openai.config.js";
 import { logger } from "../utils/logger.js";
+import { openaiCreditService } from "./openai-credit.service.js";
 import type OpenAI from "openai";
 
 /**
@@ -195,9 +196,34 @@ export class OpenAIService {
         };
       }
 
+      // Mark credits as available if call succeeds (in case they were previously marked unavailable)
+      await openaiCreditService.markCreditsAvailable().catch(() => {
+        // Silently fail - don't block the response
+      });
+
       return result;
     } catch (error: any) {
       logger.error("OpenAI chat completion error", { error, messages, options });
+      
+      // Check if this is a credit/quota error
+      const isCreditError = this.isCreditError(error);
+      
+      if (isCreditError) {
+        // Mark credits as unavailable in background
+        openaiCreditService.markCreditsUnavailable({
+          code: error.code,
+          type: error.type,
+          message: error.message
+        }).catch(() => {
+          // Silently fail - don't block error response
+        });
+        
+        logger.error("⚠️ OpenAI credits exhausted or billing issue detected", {
+          errorCode: error.code,
+          errorType: error.type,
+          errorMessage: error.message
+        });
+      }
       
       return {
         success: false,
@@ -238,6 +264,64 @@ export class OpenAIService {
     });
 
     return this.chatCompletion(messages, options);
+  }
+
+  /**
+   * Check if an OpenAI error indicates credit/quota issues
+   */
+  private isCreditError(error: any): boolean {
+    if (!error) return false;
+
+    const errorCode = error.code || error.status || "";
+    const errorType = error.type || "";
+    const errorMessage = (error.message || "").toLowerCase();
+    const errorBody = (error.body || {});
+
+    // Check for insufficient quota error
+    if (
+      errorCode === "insufficient_quota" ||
+      errorType === "insufficient_quota" ||
+      errorMessage.includes("insufficient_quota") ||
+      errorBody?.error?.code === "insufficient_quota"
+    ) {
+      return true;
+    }
+
+    // Check for billing errors
+    if (
+      errorCode === "billing_not_active" ||
+      errorType === "billing_not_active" ||
+      errorMessage.includes("billing_not_active") ||
+      errorMessage.includes("billing") && errorMessage.includes("active") ||
+      errorBody?.error?.code === "billing_not_active"
+    ) {
+      return true;
+    }
+
+    // Check for account-related errors that might indicate credit issues
+    if (
+      errorMessage.includes("account") && errorMessage.includes("disabled") ||
+      errorMessage.includes("account") && errorMessage.includes("suspended") ||
+      errorMessage.includes("payment") && errorMessage.includes("required") ||
+      errorMessage.includes("credit") && errorMessage.includes("limit") ||
+      errorMessage.includes("quota") && errorMessage.includes("exceeded")
+    ) {
+      return true;
+    }
+
+    // Check for 429 rate limit errors that might be due to quota
+    if (errorCode === 429 || error.status === 429) {
+      // Only treat as credit error if message suggests quota issue
+      if (
+        errorMessage.includes("quota") ||
+        errorMessage.includes("billing") ||
+        errorMessage.includes("credit")
+      ) {
+        return true;
+      }
+    }
+
+    return false;
   }
 }
 

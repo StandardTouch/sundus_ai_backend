@@ -136,7 +136,7 @@ export class PineconeService {
           inputs: {
             text: queryText,
           },
-          },
+        },
         rerank: {
           model: "bge-reranker-v2-m3",
           topN: k,

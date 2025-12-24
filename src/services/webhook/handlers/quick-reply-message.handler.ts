@@ -191,22 +191,22 @@ export class QuickReplyMessageHandler extends BaseMessageHandler {
         }
       } else {
         // Positive feedback - send thank you message
-        const responseText = templateLanguage === 'ar' 
-          ? "شكراً لك! سعيد بمساعدتك"
-          : "Thank you! Happy to help";
-        
-        const result = await this.sendMessage(phoneNumber, responseText, tracker);
-        
-        if (result.success) {
-          logger.info("Feedback acknowledgment sent successfully", { 
-            phoneNumber,
-            language: templateLanguage
-          });
-        } else {
-          logger.error("Failed to send feedback acknowledgment", { 
-            phoneNumber, 
-            error: result.error 
-          });
+      const responseText = templateLanguage === 'ar' 
+        ? "شكراً لك! سعيد بمساعدتك"
+        : "Thank you! Happy to help";
+      
+      const result = await this.sendMessage(phoneNumber, responseText, tracker);
+      
+      if (result.success) {
+        logger.info("Feedback acknowledgment sent successfully", { 
+          phoneNumber,
+          language: templateLanguage
+        });
+      } else {
+        logger.error("Failed to send feedback acknowledgment", { 
+          phoneNumber, 
+          error: result.error 
+        });
         }
       }
 
