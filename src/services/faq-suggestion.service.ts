@@ -26,18 +26,23 @@ export interface CreateSuggestionParams {
 export class FAQSuggestionService {
   /**
    * Check if a similar suggestion already exists (duplicate detection)
+   * Checks both pending and rejected suggestions to prevent re-suggesting rejected questions
    */
-  async checkDuplicateSuggestion(question: string, days: number = 7): Promise<boolean> {
+  async checkDuplicateSuggestion(question: string, days: number = 30): Promise<boolean> {
     try {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - days);
 
       // Get all pending suggestions
       const pendingSuggestions = await faqRepository.findByStatus('pending_review');
+      
+      // Get all rejected suggestions (to prevent re-suggesting rejected questions)
+      const rejectedSuggestions = await faqRepository.findByStatus('rejected');
 
       // Check for similar questions (exact match or very similar)
       const normalizedQuestion = question.toLowerCase().trim();
       
+      // Check pending suggestions
       for (const suggestion of pendingSuggestions) {
         const suggestionQuestion = suggestion.question?.toLowerCase().trim() || '';
         const suggestionQuestionAr = suggestion.question_ar?.toLowerCase().trim() || '';
@@ -49,11 +54,38 @@ export class FAQSuggestionService {
           suggestion.question === question ||
           suggestion.question_ar === question
         ) {
-          logger.info("Duplicate suggestion found", {
+          logger.info("Duplicate suggestion found (pending)", {
             existingId: suggestion._id,
             question
           });
           return true;
+        }
+      }
+
+      // Check rejected suggestions (only within the time window)
+      for (const suggestion of rejectedSuggestions) {
+        // Only check if rejection was recent (within the time window)
+        const rejectedAt = suggestion.ai_suggestion?.reviewed_at || suggestion.updated_at;
+        if (rejectedAt && new Date(rejectedAt) < cutoffDate) {
+          continue; // Skip old rejections
+        }
+
+        const suggestionQuestion = suggestion.question?.toLowerCase().trim() || '';
+        const suggestionQuestionAr = suggestion.question_ar?.toLowerCase().trim() || '';
+        
+        // Check exact match
+        if (
+          suggestionQuestion === normalizedQuestion ||
+          suggestionQuestionAr === normalizedQuestion ||
+          suggestion.question === question ||
+          suggestion.question_ar === question
+        ) {
+          logger.info("Duplicate suggestion found (rejected recently)", {
+            existingId: suggestion._id,
+            question,
+            rejectedAt: rejectedAt?.toISOString()
+          });
+          return true; // Prevent re-suggesting recently rejected questions
         }
       }
 

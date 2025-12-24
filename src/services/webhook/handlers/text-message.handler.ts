@@ -64,8 +64,9 @@ function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionT
   }
   
   if (hasFAQTools) {
-    capabilities.push(`- Answer general questions about AlHomaidhi Group's services and policies using the FAQ database.
-    - Search FAQs when users ask about policies, procedures, shipping, returns, payment, or general information.`);
+    capabilities.push(`- Answer general questions about AlHomaidhi Group's services and policies.
+    - When users ask about policies, procedures, shipping, returns, payment, or general information, search for relevant answers.
+    - IMPORTANT: Never mention "FAQ database", "database", or any technical details about how you find information. Simply provide the answer naturally, or say you don't have that information if it's not available.`);
   }
   
   // Always available capabilities
@@ -112,6 +113,7 @@ ${limitations.length > 0 ? limitations.join('\n') + '\n' : ''}- If you are uncer
 - Do not speculate or provide information that may be inaccurate.
 - If a request is outside your capabilities, politely explain the limitation and offer to connect the customer with appropriate resources.
 - If a requested feature is unavailable, suggest contacting support at +966 9200 09339 for assistance.
+- IMPORTANT: Never mention technical details like "FAQ database", "database", "system", "tool", or how you retrieve information. Speak naturally as if you have the information directly. If you don't have information, simply say "I don't have specific details about..." without mentioning where you searched.
 
 RESPONSE FORMAT:
 - Keep responses concise and focused on the customer's inquiry.
