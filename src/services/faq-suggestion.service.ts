@@ -4,7 +4,7 @@
  */
 
 import { faqRepository } from "../repositories/faq.repository.js";
-import { translateQuestionBothWays } from "../utils/translation.util.js";
+import { reframeQuestionBothWays } from "../utils/question-framing.util.js";
 import { detectLanguage } from "../utils/language.util.js";
 import { logger } from "../utils/logger.js";
 import type { AISuggestedFAQDto } from "../models/faq.model.js";
@@ -87,7 +87,7 @@ export class FAQSuggestionService {
         return null;
       }
 
-      // Detect language and translate to both languages
+      // Reframe question into proper FAQ format and translate to both languages
       logger.info("Creating FAQ suggestion", {
         question,
         conversationId,
@@ -95,18 +95,23 @@ export class FAQSuggestionService {
         phoneNumber
       });
 
-      const translated = await translateQuestionBothWays(question);
+      // Reframe the question into proper FAQ format in both languages
+      const reframed = await reframeQuestionBothWays(question);
       
-      // Determine which is original and which is translated
+      // Fallback to original if reframing fails
       const sourceLanguage = detectLanguage(question);
-      const originalQuestion = sourceLanguage === 'ar' 
-        ? translated.question_ar || question
-        : translated.question || question;
+      const finalQuestion = reframed.question || (sourceLanguage === 'en' ? question : null);
+      const finalQuestionAr = reframed.question_ar || (sourceLanguage === 'ar' ? question : null);
+
+      if (!finalQuestion && !finalQuestionAr) {
+        logger.warn("Failed to reframe question in any language", { question });
+        return null;
+      }
 
       // Create suggestion DTO
       const suggestionDto: AISuggestedFAQDto = {
-        question: translated.question || originalQuestion,
-        question_ar: translated.question_ar,
+        question: finalQuestion || question, // Fallback to original if reframing failed
+        question_ar: finalQuestionAr,
         answer: "", // Empty - admin will fill
         answer_ar: "", // Empty - admin will fill
         source_conversation_id: conversationId,

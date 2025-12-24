@@ -64,13 +64,13 @@ function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionT
   }
   
   if (hasFAQTools) {
-    capabilities.push(`- Answer general questions about Alhomaidhi Group's services and policies using the FAQ database.
+    capabilities.push(`- Answer general questions about AlHomaidhi Group's services and policies using the FAQ database.
     - Search FAQs when users ask about policies, procedures, shipping, returns, payment, or general information.`);
   }
   
   // Always available capabilities
   capabilities.push(`- Provide accurate and up-to-date information based on available data.
-    - Answer general questions about Alhomaidhi Group's services and policies.`);
+    - Answer general questions about AlHomaidhi Group's services and policies.`);
 
   // Build limitations based on disabled tools
   const limitations: string[] = [];
@@ -92,7 +92,7 @@ function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionT
     ? `specializing in ${roleParts.join(', ')}`
     : 'providing customer support';
 
-  return `You are Sundus AI, a professional and courteous AI assistant providing customer support for Alhomaidhi Group.
+  return `You are Sundus AI, a professional and courteous AI assistant providing customer support for AlHomaidhi Group.
 
 ROLE AND IDENTITY:
 - Your name is Sundus AI. Always introduce yourself by name when greeting users for the first time or when appropriate.
@@ -133,7 +133,7 @@ ${hasProductTools ? `- When showing multiple products from a search:
   * Example responses: "I found 3 Aston Martin watches for you!" or "Here are some Aston Martin watches I found for you."
   * Keep it to 1-2 sentences maximum
 ` : ''}
-Remember: You represent Alhomaidhi Group, and your goal is to provide exceptional customer service while maintaining professionalism and accuracy.`;
+Remember: You represent AlHomaidhi Group, and your goal is to provide exceptional customer service while maintaining professionalism and accuracy.`;
 }
 
 /**
