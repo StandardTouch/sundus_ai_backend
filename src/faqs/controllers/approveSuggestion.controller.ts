@@ -155,16 +155,16 @@ export async function approveSuggestionController(req: Request, res: Response): 
     // Update FAQ
     const approvedFAQ = await faqRepository.update(id, updatePayload);
 
-    // Sync to Pinecone
-    try {
-      await faqService.syncFAQToPinecone(approvedFAQ);
-    } catch (pineconeError: any) {
-      logger.error("Failed to sync approved FAQ to Pinecone", {
+    // Sync to Pinecone in background (non-blocking)
+    // This allows the API to respond immediately while Pinecone sync happens asynchronously
+    faqService.syncFAQToPinecone(approvedFAQ).catch((pineconeError: any) => {
+      logger.error("Failed to sync approved FAQ to Pinecone (background)", {
         error: pineconeError.message,
-        faqId: id
+        faqId: id,
+        stack: pineconeError.stack
       });
-      // Continue even if Pinecone sync fails
-    }
+      // FAQ is still approved in MongoDB - sync can be retried later if needed
+    });
 
     logger.info("FAQ suggestion approved", {
       suggestionId: id,

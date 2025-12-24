@@ -112,28 +112,26 @@ export async function updateFAQController(req: Request, res: Response): Promise<
     // Update FAQ in MongoDB
     const updatedFAQ = await faqRepository.update(id, updateData);
 
-    // Sync to Pinecone based on final state
-    // Only sync if FAQ is active and status is 'active'
+    // Sync to Pinecone in background (non-blocking)
+    // This allows the API to respond immediately while Pinecone sync happens asynchronously
     if (updatedFAQ.is_active && updatedFAQ.status === 'active') {
-      try {
-        await faqService.syncFAQToPinecone(updatedFAQ);
-      } catch (pineconeError: any) {
-        logger.error("Failed to sync FAQ to Pinecone", {
+      // Sync active FAQ to Pinecone
+      faqService.syncFAQToPinecone(updatedFAQ).catch((pineconeError: any) => {
+        logger.error("Failed to sync FAQ to Pinecone (background)", {
           error: pineconeError.message,
-          faqId: id
+          faqId: id,
+          stack: pineconeError.stack
         });
-        // Continue even if Pinecone sync fails
-      }
+      });
     } else {
-      // If FAQ is not active or status is not 'active', remove from Pinecone
-      try {
-        await faqService.removeFAQFromPinecone(id);
-      } catch (pineconeError: any) {
-        logger.error("Failed to remove FAQ from Pinecone", {
+      // Remove inactive FAQ from Pinecone
+      faqService.removeFAQFromPinecone(id).catch((pineconeError: any) => {
+        logger.error("Failed to remove FAQ from Pinecone (background)", {
           error: pineconeError.message,
-          faqId: id
+          faqId: id,
+          stack: pineconeError.stack
         });
-      }
+      });
     }
 
     logger.info("FAQ updated", {

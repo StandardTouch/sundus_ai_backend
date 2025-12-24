@@ -96,16 +96,16 @@ export async function createFAQController(req: Request, res: Response): Promise<
     // Create FAQ in MongoDB
     const faq = await faqRepository.create(createData);
 
-    // Sync to Pinecone (this will also update vector_id)
-    try {
-      await faqService.syncFAQToPinecone(faq);
-    } catch (pineconeError: any) {
-      logger.error("Failed to sync FAQ to Pinecone", {
+    // Sync to Pinecone in background (non-blocking)
+    // This allows the API to respond immediately while Pinecone sync happens asynchronously
+    faqService.syncFAQToPinecone(faq).catch((pineconeError: any) => {
+      logger.error("Failed to sync FAQ to Pinecone (background)", {
         error: pineconeError.message,
-        faqId: faq._id
+        faqId: faq._id,
+        stack: pineconeError.stack
       });
-      // Continue even if Pinecone sync fails - FAQ is still created in MongoDB
-    }
+      // FAQ is still created in MongoDB - sync can be retried later if needed
+    });
 
     logger.info("FAQ created", {
       faqId: faq._id,
