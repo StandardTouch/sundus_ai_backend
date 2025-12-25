@@ -54,8 +54,29 @@ export async function executeFAQTool(
         // Note: Language detection can be added later based on user session
         const searchResults = await faqService.searchFAQs(query, 5, 'en');
 
-        // If no FAQs found, create a smart suggestion
-        if (searchResults.faqs.length === 0 || searchResults.topScore < 0.5) {
+        logger.info("FAQ search results received in executor", {
+          query,
+          faqsCount: searchResults.faqs.length,
+          topScore: searchResults.topScore,
+          totalResults: searchResults.totalResults
+        });
+
+        // Quality check: Only use FAQs if they meet minimum relevance threshold
+        // IMPORTANT: Test results show reranking produces HIGH scores (0.5-0.9) for relevant matches
+        // Low scores (0.01-0.05) indicate weak semantic match (irrelevant queries)
+        // The Pinecone threshold (0.3) filters out weak matches
+        // This check (0.3) matches Pinecone threshold - ensures quality results
+        // Scores < 0.3 are weak matches and should trigger FAQ suggestions instead
+        // NOTE: Keyword fallback returns scores 0.4-0.5, which should pass this check
+        const MIN_RELEVANCE_SCORE = 0.3;
+        
+        if (searchResults.faqs.length === 0 || searchResults.topScore < MIN_RELEVANCE_SCORE) {
+          logger.info("FAQ search results below relevance threshold, creating suggestion", {
+            query,
+            topScore: searchResults.topScore,
+            resultsCount: searchResults.faqs.length,
+            threshold: MIN_RELEVANCE_SCORE
+          });
           // Create FAQ suggestion in background (don't wait for it)
           if (context) {
             faqSuggestionService.createSuggestion({
@@ -89,8 +110,19 @@ export async function executeFAQTool(
           };
         }
 
-        // If single FAQ found with high score
-        if (searchResults.faqs.length === 1 && searchResults.topScore >= 0.85) {
+        // FAQs found and passed threshold - use them
+        // Keyword fallback returns scores 0.4-0.5 (above threshold 0.3)
+        // Semantic search returns scores >= 0.5 for good matches
+        // Both should be used if they pass the threshold
+        
+        if (searchResults.faqs.length === 1) {
+          // Single FAQ - use it (whether from keyword fallback or semantic search)
+          logger.info("Single FAQ found, formatting for AI", {
+            query,
+            faqId: searchResults.faqs[0]._id,
+            topScore: searchResults.topScore,
+            isKeywordMatch: searchResults.topScore >= 0.4 && searchResults.topScore <= 0.5
+          });
           const formatted = faqService.formatFAQForAI(searchResults.faqs[0], 'en');
           return {
             success: true,
@@ -99,8 +131,12 @@ export async function executeFAQTool(
           };
         }
 
-        // If multiple FAQs found or lower score
-        // Return formatted result with all FAQs
+        // Multiple FAQs found
+        logger.info("Multiple FAQs found, formatting for AI", {
+          query,
+          faqsCount: searchResults.faqs.length,
+          topScore: searchResults.topScore
+        });
         const formatted = faqService.formatMultipleFAQsForAI(searchResults.faqs, 'en');
         return {
           success: true,

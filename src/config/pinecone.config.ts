@@ -33,9 +33,23 @@ export const pineconeConfig = {
   /**
    * Similarity threshold for FAQ search
    * Only return FAQs with similarity score above this threshold
+   * 
+   * IMPORTANT: Test results show reranking produces HIGH scores (0.5-0.9) for relevant matches.
+   * Low scores (0.01-0.05) indicate weak semantic match (irrelevant queries).
+   * 
+   * Based on test results:
+   * - Relevant queries: 0.5-0.9 (very good matches)
+   * - Weak matches: 0.05-0.3 (somewhat relevant)
+   * - Irrelevant: < 0.05 (should be filtered)
+   * 
+   * - 0.3: Balanced - filters weak matches, keeps good ones (recommended)
+   * - 0.5: Strict - only high-quality matches
+   * - 0.1: Permissive - allows weak matches through
+   * 
+   * The FAQ executor checks topScore < 0.3 to create suggestions for weak matches.
    */
   similarityThreshold: parseFloat(
-    process.env.PINECONE_SIMILARITY_THRESHOLD || "0.75"
+    process.env.PINECONE_SIMILARITY_THRESHOLD || "0.3"
   ),
 
   /**

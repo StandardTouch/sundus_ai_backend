@@ -71,6 +71,7 @@ function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionT
       * General information about services
       * Any question that might be covered in company documentation
     - ALWAYS search FAQs first before providing an answer to policy or general information questions.
+    - CRITICAL: When the search_faqs tool returns an FAQ answer, use it DIRECTLY in your response. Do NOT expand, rephrase, or add extra information unless the FAQ answer is clearly incomplete or needs clarification. For short answers (like phone numbers or brief instructions), use them exactly as provided.
     - Only provide a direct answer if the FAQ search returns no results or low confidence.
     - IMPORTANT: Never mention "FAQ database", "database", or any technical details about how you find information. Simply provide the answer naturally, or say you don't have that information if it's not available.`);
   }

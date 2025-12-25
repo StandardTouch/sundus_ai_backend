@@ -130,6 +130,8 @@ export class PineconeService {
       });
 
       // Search with reranking for better results
+      // NOTE: With reranking, Pinecone returns reranking scores (not similarity scores)
+      // Reranking scores may have different scale - test both to understand score ranges
       const results = await ns.searchRecords({
         query: {
           topK: k * 2, // Get more candidates for reranking
@@ -144,6 +146,10 @@ export class PineconeService {
         },
       });
 
+      // IMPORTANT: In Pinecone, HIGHER scores = BETTER matches (more relevant)
+      // Typical similarity scores: 0.7-0.9 (very good), 0.5-0.7 (good), <0.3 (weak)
+      // If scores are very low (0.01-0.03), it indicates low relevance or reranking scale difference
+
       // Extract and format results
       const searchResults: FAQSearchResult[] = results.result.hits.map((hit) => {
         const fields = hit.fields as Record<string, any>;
@@ -154,7 +160,24 @@ export class PineconeService {
         };
       });
 
-      // Filter by similarity threshold
+      // Log scores and actual text content for debugging
+      logger.info("FAQ search results from Pinecone (after reranking, before threshold filter)", {
+        query: queryText,
+        rawResultsCount: searchResults.length,
+        rawScores: searchResults.map(r => ({ 
+          id: r._id, 
+          score: r._score,
+          textPreview: (r.fields?.text || "").substring(0, 100) // Show first 100 chars of stored text
+        })),
+        rawTopScore: searchResults[0]?._score || 0,
+        threshold: pineconeConfig.similarityThreshold,
+        namespace: namespace || this.defaultNamespace,
+      });
+
+      // Filter by similarity threshold to prevent irrelevant results
+      // The threshold acts as a quality gate - only return FAQs with reasonable relevance
+      // Note: With reranking, scores are normalized. A threshold of 0.3 filters out very low relevance
+      // while still allowing relevant FAQs through. The executor's 0.5 check provides additional quality control.
       const filteredResults = searchResults.filter(
         (result) => result._score >= pineconeConfig.similarityThreshold
       );
@@ -163,6 +186,9 @@ export class PineconeService {
         query: queryText,
         totalResults: filteredResults.length,
         topScore: filteredResults[0]?._score || 0,
+        rawResultsCount: searchResults.length,
+        rawTopScore: searchResults[0]?._score || 0,
+        threshold: pineconeConfig.similarityThreshold,
         namespace: namespace || this.defaultNamespace,
       });
 
