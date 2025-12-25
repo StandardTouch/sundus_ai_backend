@@ -143,11 +143,11 @@ export class FAQSuggestionService {
       // Create suggestion DTO
       const suggestionDto: AISuggestedFAQDto = {
         question: finalQuestion || question, // Fallback to original if reframing failed
-        question_ar: finalQuestionAr,
+        ...(finalQuestionAr && { question_ar: finalQuestionAr }), // Only include if not null/undefined
         answer: "", // Empty - admin will fill
         answer_ar: "", // Empty - admin will fill
-        source_conversation_id: conversationId,
-        source_message_id: messageId,
+        ...(conversationId && { source_conversation_id: conversationId }),
+        ...(messageId && { source_message_id: messageId }),
         confidence_score: 0.0 // Low confidence since no FAQ was found
       };
 
