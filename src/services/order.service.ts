@@ -4,7 +4,7 @@
  */
 
 import { alhomaidhiOrderAPI } from "../api/alhomaidhi/order.api.js";
-import type { Order, OrderItem } from "../api/alhomaidhi/order.api.js";
+import type { Order, OrderItem, AramexDetail } from "../api/alhomaidhi/order.api.js";
 import { logger } from "../utils/logger.js";
 
 /**
@@ -202,6 +202,15 @@ export class OrderService {
       });
     }
 
+    // Add Aramex tracking information if available
+    if (this.isAramexOrder(order)) {
+      const trackingNumber = this.getPrimaryTrackingNumber(order);
+      if (trackingNumber) {
+        formatted += `\nTracking Number: ${trackingNumber}\n`;
+        formatted += `Shipping: Aramex\n`;
+      }
+    }
+
     return formatted;
   }
 
@@ -222,6 +231,60 @@ export class OrderService {
     });
 
     return formatted;
+  }
+
+  /**
+   * Check if order is an Aramex order
+   */
+  isAramexOrder(order: Order): boolean {
+    return order.order_details.is_aramex_order === true;
+  }
+
+  /**
+   * Get Aramex details for an order
+   * Returns empty array if not an Aramex order
+   */
+  getAramexDetails(order: Order): AramexDetail[] {
+    if (!this.isAramexOrder(order)) {
+      return [];
+    }
+    return order.order_details.aramex_details || [];
+  }
+
+  /**
+   * Get primary tracking number from Aramex details
+   * Returns null if not an Aramex order or no tracking number
+   */
+  getPrimaryTrackingNumber(order: Order): string | null {
+    const aramexDetails = this.getAramexDetails(order);
+    if (aramexDetails.length === 0) {
+      return null;
+    }
+    // Return the first tracking number (primary one)
+    return aramexDetails[0]?.tracking_num || null;
+  }
+
+  /**
+   * Get all tracking numbers from Aramex details
+   */
+  getAllTrackingNumbers(order: Order): string[] {
+    const aramexDetails = this.getAramexDetails(order);
+    if (aramexDetails.length === 0) {
+      return [];
+    }
+    // Return all tracking numbers from the first aramex detail
+    return aramexDetails[0]?.all_trk_nos || [];
+  }
+
+  /**
+   * Get shipping label URL from Aramex details
+   */
+  getShippingLabelUrl(order: Order): string | null {
+    const aramexDetails = this.getAramexDetails(order);
+    if (aramexDetails.length === 0) {
+      return null;
+    }
+    return aramexDetails[0]?.label || null;
   }
 }
 

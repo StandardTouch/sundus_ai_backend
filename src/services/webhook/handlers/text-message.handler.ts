@@ -898,7 +898,12 @@ export class TextMessageHandler extends BaseMessageHandler {
       // Order data available - send order template
       const order = orderData.order;
       const language = detectLanguage(aiResponse);
-      const templateName = language === 'ar' ? 'order_ar_new' : 'order_en_new';
+      const isAramexOrder = orderService.isAramexOrder(order);
+      
+      // Select template based on order type (Aramex vs regular) and language
+      const templateName = isAramexOrder
+        ? (language === 'ar' ? 'order_ar_aramex' : 'order_en_aramex_new')
+        : (language === 'ar' ? 'order_ar_new' : 'order_en_new');
       const languageCode = language === 'ar' ? 'ar' : 'en';
       
       // Get image from first order item, fallback to default if not available
@@ -927,13 +932,22 @@ export class TextMessageHandler extends BaseMessageHandler {
         ? orderService.formatOrderStatusArabic(order.order_details?.order_status || "")
         : orderService.formatOrderStatus(order.order_details?.order_status || "");
       
+      // Get Aramex tracking info if available
+      const trackingNumber = isAramexOrder ? orderService.getPrimaryTrackingNumber(order) : null;
+      const allTrackingNumbers = isAramexOrder ? orderService.getAllTrackingNumbers(order) : [];
+      const shippingLabelUrl = isAramexOrder ? orderService.getShippingLabelUrl(order) : null;
+      
       logger.info("Sending order template", {
         phoneNumber,
         orderId,
         templateName,
         languageCode,
         imageUrl: orderImageUrl,
-        hasItemImage: !!(order.items && order.items.length > 0 && order.items[0].image)
+        hasItemImage: !!(order.items && order.items.length > 0 && order.items[0].image),
+        isAramexOrder,
+        trackingNumber,
+        allTrackingNumbers,
+        shippingLabelUrl
       });
       
       // First send the AI response text
@@ -948,6 +962,7 @@ export class TextMessageHandler extends BaseMessageHandler {
       }
       
       // Send order template with item image (or fallback)
+      // For Aramex orders, include tracking number and URL button
       const templateResult = await this.aisensyService.sendOrderTemplate(
         phoneNumber,
         templateName,
@@ -956,7 +971,9 @@ export class TextMessageHandler extends BaseMessageHandler {
         orderDescription,
         orderId,
         orderStatus,
-        orderImageUrl
+        orderImageUrl,
+        trackingNumber || undefined, // Pass tracking number for Aramex templates
+        isAramexOrder // Include URL button for Aramex orders
       );
       
       if (templateResult.success) {

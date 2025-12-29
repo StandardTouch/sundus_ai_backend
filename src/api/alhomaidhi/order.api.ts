@@ -8,6 +8,19 @@ import { alhomaidhiConfig, validateAlhomaidhiConfig } from "../../config/alhomai
 import { logger } from "../../utils/logger.js";
 
 /**
+ * Aramex shipping details
+ */
+export interface AramexDetail {
+  tracking_num: string;
+  status: string;
+  label: string; // URL to shipping label PDF
+  invoice: string;
+  all_trk_nos: string[]; // Array of all tracking numbers
+  track_group: string;
+  user_id: string;
+}
+
+/**
  * Order API response types
  */
 export interface OrderDetails {
@@ -20,6 +33,8 @@ export interface OrderDetails {
   discount_total: string;
   discount_tax: string;
   cart_tax: string;
+  is_aramex_order: boolean; // Whether this order uses Aramex shipping
+  aramex_details: AramexDetail[]; // Array of Aramex shipping details (empty for non-Aramex orders)
 }
 
 export interface BillingDetails {

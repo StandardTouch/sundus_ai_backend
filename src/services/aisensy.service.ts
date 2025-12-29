@@ -272,13 +272,15 @@ export class AISensyService {
    * Send order tracking template
    * 
    * @param phoneNumber - Recipient phone number
-   * @param templateName - Template name ("order_en_new" or "order_ar_new")
+   * @param templateName - Template name ("order_en_new", "order_ar_new", "order_en_aramex_new", etc.)
    * @param languageCode - Language code ("en" or "ar")
    * @param customerName - Customer name ({{1}})
    * @param orderDescription - Order description ({{2}})
    * @param orderId - Order ID ({{3}})
    * @param orderStatus - Order status ({{4}})
    * @param imageUrl - Header image URL
+   * @param trackingNumber - Optional Aramex tracking number ({{5}}) - required for Aramex templates
+   * @param includeUrlButton - Whether to include URL button with tracking number (for Aramex orders)
    */
   async sendOrderTemplate(
     phoneNumber: PhoneNumber,
@@ -288,10 +290,52 @@ export class AISensyService {
     orderDescription: string,
     orderId: string,
     orderStatus: string,
-    imageUrl: string
+    imageUrl: string,
+    trackingNumber?: string | null,
+    includeUrlButton: boolean = false
   ): Promise<AISensyResponse> {
-    // Match exact structure from test script (test-order-template.ts)
-    const components = [
+    // Build body parameters
+    const bodyParameters: Array<{ type: "text"; text: string }> = [
+      {
+        type: "text",
+        text: customerName, // {{1}}
+      },
+      {
+        type: "text",
+        text: orderDescription, // {{2}}
+      },
+      {
+        type: "text",
+        text: orderId, // {{3}}
+      },
+      {
+        type: "text",
+        text: orderStatus, // {{4}}
+      },
+    ];
+
+    // Add tracking number as 5th parameter for Aramex templates
+    if (trackingNumber) {
+      bodyParameters.push({
+        type: "text",
+        text: trackingNumber, // {{5}}
+      });
+    }
+
+    // Build components array
+    const components: Array<{
+      type: "header" | "body" | "button";
+      parameters?: Array<{
+        type: "text" | "currency" | "date_time" | "image" | "document" | "video";
+        text?: string;
+        image?: {
+          link?: string;
+          id?: string;
+        };
+      }>;
+      sub_type?: "url" | "quick_reply" | "text";
+      index?: number | string;
+    }> = [
       {
         type: "header",
         parameters: [
@@ -305,28 +349,26 @@ export class AISensyService {
       },
       {
         type: "body",
-        parameters: [
-          {
-            type: "text",
-            text: customerName, // {{1}}
-          },
-          {
-            type: "text",
-            text: orderDescription, // {{2}}
-          },
-          {
-            type: "text",
-            text: orderId, // {{3}}
-          },
-          {
-            type: "text",
-            text: orderStatus, // {{4}}
-          },
-        ],
+        parameters: bodyParameters,
       },
     ];
 
-    // Log payload for debugging (similar to product template)
+    // Add URL button for Aramex orders
+    if (includeUrlButton && trackingNumber) {
+      components.push({
+        type: "button",
+        sub_type: "url",
+        index: "0", // Match product template pattern
+        parameters: [
+          {
+            type: "text",
+            text: trackingNumber, // URL button parameter
+          },
+        ],
+      });
+    }
+
+    // Log payload for debugging
     logger.info("Sending order template", {
       phoneNumber,
       templateName,
@@ -336,6 +378,8 @@ export class AISensyService {
       orderDescription,
       orderId,
       orderStatus,
+      trackingNumber,
+      includeUrlButton,
       components: JSON.stringify(components, null, 2)
     });
 
