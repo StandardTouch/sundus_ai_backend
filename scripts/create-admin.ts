@@ -22,9 +22,9 @@ import { logger } from "../src/utils/logger.js";
 
 dotenv.config();
 
-const ADMIN_EMAIL = "info@alhomaidhi.com";
-const ADMIN_PASSWORD = "**********";
-const ADMIN_USERNAME = "info@alhomaidhi.com";
+const ADMIN_EMAIL = "yaseen@standardtouch.com";
+const ADMIN_PASSWORD = "*********";
+const ADMIN_USERNAME = "yaseen@standardtouch.com";
 const ADMIN_FULL_NAME = "Admin User";
 
 const BCRYPT_ROUNDS = 10;

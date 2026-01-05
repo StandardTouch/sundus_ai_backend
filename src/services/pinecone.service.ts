@@ -316,6 +316,56 @@ export class PineconeService {
   }
 
   /**
+   * List all FAQ IDs in Pinecone namespace
+   * @param namespace Optional namespace (defaults to configured namespace)
+   * @returns Array of all FAQ IDs
+   */
+  async listAllFAQIds(namespace?: string): Promise<string[]> {
+    try {
+      const ns = this.getNamespace(namespace);
+      const allIds: string[] = [];
+      let paginationToken: string | undefined;
+
+      logger.info("Listing all FAQ IDs from Pinecone", {
+        namespace: namespace || this.defaultNamespace,
+      });
+
+      while (true) {
+        const result = await ns.listPaginated({
+          limit: 99, // Pinecone API limit: must be less than 100
+          paginationToken: paginationToken,
+        });
+
+        if (result.vectors) {
+          for (const vector of result.vectors) {
+            if (vector.id) {
+              allIds.push(vector.id);
+            }
+          }
+        }
+
+        if (!result.pagination || !result.pagination.next) {
+          break;
+        }
+        paginationToken = result.pagination.next;
+      }
+
+      logger.info("Successfully listed all FAQ IDs from Pinecone", {
+        totalIds: allIds.length,
+        namespace: namespace || this.defaultNamespace,
+      });
+
+      return allIds;
+    } catch (error: any) {
+      logger.error("Error listing FAQ IDs from Pinecone", {
+        error: error.message,
+        namespace: namespace || this.defaultNamespace,
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Get index statistics
    * @returns Index stats including record count
    */
