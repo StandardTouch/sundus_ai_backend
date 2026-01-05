@@ -117,7 +117,9 @@ ROLE AND IDENTITY:
 
 LANGUAGE SUPPORT:
 - You support BOTH English and Arabic languages.
-- ALWAYS respond in the SAME language the user is using. If the user writes in Arabic, respond in Arabic. If the user writes in English, respond in English.
+- CRITICAL: ALWAYS respond in the SAME language as the user's CURRENT message, regardless of previous conversation history.
+- If the user's CURRENT message is in Arabic, you MUST respond in Arabic. If the user's CURRENT message is in English, you MUST respond in English.
+- Do NOT continue in a previous language if the user switches languages - always match their CURRENT message language.
 - If a user asks to switch to Arabic mode or requests Arabic, immediately switch to responding in Arabic for all subsequent messages.
 - If a user asks to switch to English mode or requests English, immediately switch to responding in English for all subsequent messages.
 - You are fully capable of communicating fluently in both languages - never refuse to use Arabic or claim you can only use English.
@@ -175,7 +177,8 @@ export class TextMessageHandler extends BaseMessageHandler {
     conversationHistory: ChatMessage[],
     tracker: TimingTracker,
     phoneNumber: string,
-    storedUserMessage?: ConversationMessage | null
+    storedUserMessage?: ConversationMessage | null,
+    userLanguage?: 'ar' | 'en' // User's current message language
   ): Promise<{ 
     message: string | null; 
     productData?: { products: Product[]; isSingleProduct: boolean };
@@ -187,7 +190,15 @@ export class TextMessageHandler extends BaseMessageHandler {
     tracker.addEvent(`Using ${enabledTools.length} enabled tools`);
 
     // Build dynamic system prompt based on enabled tools
-    const systemPrompt = buildSystemPrompt(enabledTools);
+    let systemPrompt = buildSystemPrompt(enabledTools);
+    
+    // Add explicit language instruction if user language is detected
+    if (userLanguage) {
+      const languageInstruction = userLanguage === 'ar'
+        ? "\n\nCRITICAL LANGUAGE INSTRUCTION: The user's CURRENT message is in Arabic. You MUST respond in Arabic. Ignore any previous English conversation history - respond in Arabic to match the user's current message language."
+        : "\n\nCRITICAL LANGUAGE INSTRUCTION: The user's CURRENT message is in English. You MUST respond in English. Ignore any previous Arabic conversation history - respond in English to match the user's current message language.";
+      systemPrompt += languageInstruction;
+    }
     
     const messages: ChatMessage[] = [
       { role: "system", content: systemPrompt },
@@ -645,6 +656,14 @@ export class TextMessageHandler extends BaseMessageHandler {
       )
     ]);
 
+    // Detect user's current message language - use this for response and templates
+    const userMessageLanguage = detectLanguage(sanitizedText);
+    logger.info("User message language detected", {
+      phoneNumber,
+      language: userMessageLanguage,
+      messagePreview: sanitizedText.substring(0, 50)
+    });
+
     // Process with OpenAI (use sanitized input) - with tools support
     tracker.addEvent("Processing with OpenAI");
     const aiResult = await this.processWithTools(
@@ -652,7 +671,8 @@ export class TextMessageHandler extends BaseMessageHandler {
       conversationHistory,
       tracker,
       phoneNumber,
-      storedUserMessage
+      storedUserMessage,
+      userMessageLanguage // Pass user language to ensure AI responds in same language
     );
     tracker.addEvent(`OpenAI processing completed`);
 
@@ -731,10 +751,18 @@ export class TextMessageHandler extends BaseMessageHandler {
     if (productData?.products && productData.products.length > 0) {
       const products = productData.products;
       
-      // Detect language from AI response to use correct template
-      const language = detectLanguage(aiResponse);
+      // Use user's message language for template (not AI response language)
+      // This ensures templates match the language the user is using
+      const language = userMessageLanguage || detectLanguage(aiResponse);
       const templateName = language === 'ar' ? 'product_card_arabic' : 'product_card';
       const languageCode = language === 'ar' ? 'ar' : 'en';
+      
+      logger.info("Using template language based on user message", {
+        phoneNumber,
+        userMessageLanguage,
+        templateName,
+        languageCode
+      });
       
       // Log product data for debugging
       logger.info("Product data for template sending", {
@@ -913,7 +941,8 @@ export class TextMessageHandler extends BaseMessageHandler {
     } else if (orderData?.order) {
       // Order data available - send order template
       const order = orderData.order;
-      const language = detectLanguage(aiResponse);
+      // Use user's message language for template (not AI response language)
+      const language = userMessageLanguage || detectLanguage(aiResponse);
       const isAramexOrder = orderService.isAramexOrder(order);
       
       // Select template based on order type (Aramex vs regular) and language
@@ -921,6 +950,14 @@ export class TextMessageHandler extends BaseMessageHandler {
         ? (language === 'ar' ? 'order_ar_aramex' : 'order_en_aramex_new')
         : (language === 'ar' ? 'order_ar_new' : 'order_en_new');
       const languageCode = language === 'ar' ? 'ar' : 'en';
+      
+      logger.info("Using order template language based on user message", {
+        phoneNumber,
+        userMessageLanguage,
+        templateName,
+        languageCode,
+        isAramexOrder
+      });
       
       // Get image from first order item, fallback to default if not available
       let orderImageUrl = "https://alhomaidhigroup.com/wp-content/uploads/2025/12/Z3lqS1NTMmFCL1NmK0kxUzQzSE91Zz09.png"; // Default fallback

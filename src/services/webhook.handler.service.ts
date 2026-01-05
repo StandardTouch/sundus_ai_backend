@@ -201,10 +201,20 @@ export class WebhookHandlerService {
       const languageCode = language === 'ar' ? "ar" : "en_us";
       
       tracker.addEvent(`Sending campaign feedback template (${language})`);
+      logger.info("Sending feedback template ONLY (no text message before template)", {
+        phoneNumber,
+        templateName,
+        languageCode,
+        language
+      });
+      
+      // IMPORTANT: Send ONLY the template message - NO text message before it
+      // The template itself contains the body text and buttons
       const campaignResult = await this.aisensyService.sendTemplateMessage(
         phoneNumber,
         templateName,
         languageCode
+        // No components needed - template body and buttons are configured in AISensy
       );
 
       if (campaignResult.success && campaignResult.message_id) {
