@@ -14,7 +14,7 @@ export const productTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "search_products",
-      description: "Search for products by SKU, brand name, or keywords. Use this when user wants to find products, search for items, browse catalog, ask about specific brands, or wants product recommendations.",
+      description: "Search for products (watches) by SKU, brand name, or keywords. MANDATORY: Use this when user asks 'tell me about your products', 'what products do you have', 'show me your products', wants to find products, search for items, browse catalog, ask about specific brands, or wants product recommendations. Always use this tool to show the watch catalog when asked about products.",
       parameters: {
         type: "object",
         properties: {
