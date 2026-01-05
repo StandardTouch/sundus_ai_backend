@@ -62,25 +62,28 @@ export async function executeProductTool(
 
           if (uniqueSimilar.length > 0) {
             const formatted = productService.formatProductsForAI(uniqueSimilar, 5);
-            return {
-              success: true,
-              result: `I couldn't find products matching "${query}". However, here are some similar products you might be interested in:\n\n${formatted}`
-            };
+          return {
+            success: true,
+            result: `I couldn't find products matching "${query}". However, here are some similar products you might be interested in:\n\n${formatted}`,
+            should_send_feedback: true // Similar products found - task completed
+          };
           }
 
           // If still no results, suggest browsing brands
           const brands = await productService.listBrands();
           if (brands.length > 0) {
             const brandList = brands.slice(0, 5).map((b, i) => `${i + 1}. ${b.name}`).join("\n");
-            return {
-              success: true,
-              result: `I couldn't find products matching "${query}". We don't have that specific product in our catalog.\n\nYou might want to browse our available brands:\n${brandList}\n\nOr try searching with different keywords.`
-            };
+          return {
+            success: true,
+            result: `I couldn't find products matching "${query}". We don't have that specific product in our catalog.\n\nYou might want to browse our available brands:\n${brandList}\n\nOr try searching with different keywords.`,
+            should_send_feedback: true // Cannot help - task complete (no products found)
+          };
           }
 
           return {
             success: true,
-            result: `I couldn't find products matching "${query}". We don't have that specific product in our catalog. Please try searching with different keywords or ask me about our available brands.`
+            result: `I couldn't find products matching "${query}". We don't have that specific product in our catalog. Please try searching with different keywords or ask me about our available brands.`,
+            should_send_feedback: true // Cannot help - task complete (no products found)
           };
         }
 
@@ -92,7 +95,8 @@ export async function executeProductTool(
           success: true,
           result: briefSummary,
           products: products,
-          isSingleProduct: false // Multiple products
+          isSingleProduct: false, // Multiple products
+          should_send_feedback: true // Products found - task completed
         };
       }
 
@@ -117,13 +121,15 @@ export async function executeProductTool(
             const brandList = brands.slice(0, 5).map((b, i) => `${i + 1}. ${b.name}`).join("\n");
             return {
               success: true,
-              result: `I couldn't find a product with ID ${product_id}. We don't have that specific product in our catalog.\n\nYou might want to:\n- Browse our available brands:\n${brandList}\n- Search for products using keywords\n- Ask me about specific product categories`
+              result: `I couldn't find a product with ID ${product_id}. We don't have that specific product in our catalog.\n\nYou might want to:\n- Browse our available brands:\n${brandList}\n- Search for products using keywords\n- Ask me about specific product categories`,
+              should_send_feedback: true // Cannot help - task complete (product not found)
             };
           }
 
           return {
             success: true,
-            result: `I couldn't find a product with ID ${product_id}. We don't have that specific product in our catalog. Please try searching for products using keywords or ask me about our available brands.`
+            result: `I couldn't find a product with ID ${product_id}. We don't have that specific product in our catalog. Please try searching for products using keywords or ask me about our available brands.`,
+            should_send_feedback: true // Cannot help - task complete (product not found)
           };
         }
 
@@ -153,7 +159,8 @@ export async function executeProductTool(
           success: true,
           result: result,
           products: [product], // Single product
-          isSingleProduct: true
+          isSingleProduct: true,
+          should_send_feedback: true // Product found - task completed
         };
       }
 

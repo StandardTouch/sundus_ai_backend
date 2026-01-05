@@ -106,7 +106,8 @@ export async function executeFAQTool(
           return {
             success: true,
             result: null,  // null means no FAQ found - AI will generate response
-            faqs: []
+            faqs: [],
+            should_send_feedback: false // No FAQ found - AI will generate response, check AI response later
           };
         }
 
@@ -127,7 +128,8 @@ export async function executeFAQTool(
           return {
             success: true,
             result: formatted,
-            faqs: searchResults.faqs
+            faqs: searchResults.faqs,
+            should_send_feedback: true // FAQ found - task completed
           };
         }
 
@@ -141,7 +143,8 @@ export async function executeFAQTool(
         return {
           success: true,
           result: formatted,
-          faqs: searchResults.faqs
+          faqs: searchResults.faqs,
+          should_send_feedback: true // FAQs found - task completed
         };
       }
 

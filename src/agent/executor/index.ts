@@ -24,6 +24,7 @@ export interface ToolExecutionResult {
     orderCount?: number;
     order?: any;
     isSingleOrder?: boolean;
+    should_send_feedback?: boolean; // Flag indicating if feedback should be sent after this tool execution
   };
 }
 

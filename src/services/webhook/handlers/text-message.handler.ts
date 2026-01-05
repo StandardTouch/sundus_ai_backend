@@ -183,6 +183,7 @@ export class TextMessageHandler extends BaseMessageHandler {
     message: string | null; 
     productData?: { products: Product[]; isSingleProduct: boolean };
     orderData?: { order: any; isSingleOrder: boolean };
+    shouldSendFeedback?: boolean; // Flag indicating if feedback should be sent
   }> {
     // Get enabled tools from database (respects admin settings)
     tracker.addEvent("Getting enabled tools from database");
@@ -370,6 +371,13 @@ export class TextMessageHandler extends BaseMessageHandler {
         
         return null;
       })();
+
+      // Check tool results for feedback flags
+      // If any tool indicates feedback should be sent, set the flag
+      const shouldSendFeedbackFromTools = toolResults.some(tr => {
+        const metadata = tr.metadata as any; // Type assertion for optional metadata
+        return metadata?.should_send_feedback === true;
+      });
 
       // Add assistant message with tool calls to conversation
       // OpenAI requires tool_calls to be included in the assistant message
@@ -560,8 +568,10 @@ export class TextMessageHandler extends BaseMessageHandler {
         message: string; 
         productData?: { products: Product[]; isSingleProduct: boolean };
         orderData?: { order: Order; isSingleOrder: boolean };
+        shouldSendFeedback?: boolean;
       } = {
-        message: finalResult.message
+        message: finalResult.message,
+        shouldSendFeedback: shouldSendFeedbackFromTools
       };
       
       if (productData) {
@@ -726,13 +736,26 @@ export class TextMessageHandler extends BaseMessageHandler {
     const openaiTime = openaiEvents.reduce((sum, e) => sum + e.elapsed, 0);
     const processingTime = totalResponseTime - openaiTime;
 
+    // Check if feedback should be sent based on tool results or AI response
+    // Import feedback detection utility
+    const { shouldSendFeedbackFromAIResponse } = await import("../../../utils/feedback-detection.util.js");
+    
+    // Check tool results for feedback flags (from processWithTools)
+    let shouldSendFeedback = aiResult.shouldSendFeedback === true;
+    
+    // If no tool flag, check AI response as fallback
+    if (!shouldSendFeedback && aiResult.message) {
+      shouldSendFeedback = shouldSendFeedbackFromAIResponse(aiResponse);
+    }
+    
     // Store assistant message with response time and accuracy data
     tracker.addEvent("Storing assistant message");
     const assistantMessageId = `assistant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const metadata: ConversationMessage['metadata'] = {
       response_time_ms: Math.round(totalResponseTime),
       openai_time_ms: Math.round(openaiTime),
-      processing_time_ms: Math.round(processingTime)
+      processing_time_ms: Math.round(processingTime),
+      should_send_feedback: shouldSendFeedback // Flag for webhook handler
     };
     
     // Get conversation ID from stored user message

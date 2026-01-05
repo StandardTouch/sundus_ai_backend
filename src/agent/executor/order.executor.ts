@@ -61,6 +61,7 @@ async function executeTrackOrder(args: {
         metadata: {
           orders: [],
           orderCount: 0,
+          should_send_feedback: true // Cannot help - task complete (no orders found)
         },
       };
     }
@@ -88,6 +89,7 @@ async function executeTrackOrder(args: {
         // Include latest order for template sending
         order: latestOrder,
         isSingleOrder: true, // Treat as single order for template
+        should_send_feedback: true // Order found - task completed
       },
     };
   } catch (error: any) {
@@ -156,6 +158,7 @@ async function executeGetOrderDetails(args: {
         metadata: {
           order: null,
           isSingleOrder: false,
+          should_send_feedback: true // Cannot help - task complete (order not found)
         },
       };
     }
@@ -170,6 +173,7 @@ async function executeGetOrderDetails(args: {
       metadata: {
         order: order,
         isSingleOrder: true,
+        should_send_feedback: true // Order found - task completed
       },
     };
   } catch (error: any) {

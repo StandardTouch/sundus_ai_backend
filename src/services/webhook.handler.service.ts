@@ -164,10 +164,9 @@ export class WebhookHandlerService {
         logger.debug("Timing breakdown message disabled", { phoneNumber });
       }
 
-      // Send campaign feedback template message
-      // Detect language from the last AI response to send appropriate template
-      // Skip if the last message was a "Talk to Human" response or feedback acknowledgment
-      tracker.addEvent("Detecting language for feedback template");
+      // Check if feedback template should be sent
+      // Only send when task is completed or cannot help (not after every message)
+      tracker.addEvent("Checking if feedback template should be sent");
       const recentMessages = await conversationService.getRecentMessages(phoneNumber, 5);
       const lastAssistantMessage = recentMessages
         .filter(msg => msg.role === 'assistant' && !msg.metadata?.is_feedback_template)
@@ -190,6 +189,35 @@ export class WebhookHandlerService {
         });
         return tracker.getResult();
       }
+
+      // Check if feedback was sent recently (within last 3 minutes) - prevent spam
+      const { wasFeedbackSentRecently } = await import("../utils/feedback-detection.util.js");
+      const lastFeedbackMessage = recentMessages
+        .filter(msg => msg.metadata?.is_feedback_template === true)
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0];
+      
+      if (lastFeedbackMessage && wasFeedbackSentRecently(lastFeedbackMessage.timestamp, 3)) {
+        logger.info("Skipping feedback template - feedback sent recently", {
+          phoneNumber,
+          lastFeedbackTimestamp: lastFeedbackMessage.timestamp,
+          minutesAgo: (Date.now() - lastFeedbackMessage.timestamp.getTime()) / (1000 * 60)
+        });
+        return tracker.getResult();
+      }
+
+      // Check if last assistant message has should_send_feedback flag
+      // This flag is set by tool results or AI response analysis
+      if (lastAssistantMessage?.metadata?.should_send_feedback !== true) {
+        logger.info("Skipping feedback template - no feedback flag set (conversation still active)", {
+          phoneNumber,
+          lastMessageId: lastAssistantMessage?.message_id,
+          hasFlag: !!lastAssistantMessage?.metadata?.should_send_feedback
+        });
+        return tracker.getResult();
+      }
+      
+      // All checks passed - send feedback template
+      tracker.addEvent("Detecting language for feedback template");
       
       const language = lastAssistantMessage 
         ? detectLanguage(lastAssistantMessage.content)
