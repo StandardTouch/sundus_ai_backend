@@ -13,12 +13,12 @@ import { logger } from "./logger.js";
  * 
  * @param query - User's search query
  * @param availableBrands - List of available brands in the catalog
- * @returns Extracted brand name (corrected) or null if no brand detected
+ * @returns Extracted brand with ID and name, or null if no brand detected
  */
 export async function extractBrandFromQuery(
   query: string,
   availableBrands: Array<{ id: number; name: string; img?: string }>
-): Promise<{ brandName: string; originalQuery: string } | null> {
+): Promise<{ brandId: number; brandName: string; originalQuery: string } | null> {
   try {
     if (!query || query.trim().length === 0) {
       return null;
@@ -94,10 +94,12 @@ Return ONLY the brand name (exactly as it appears in the available brands list) 
     logger.info("Brand extracted successfully using AI", {
       query,
       extractedBrand: matchedBrand.name,
+      brandId: matchedBrand.id,
       originalQuery: query
     });
 
     return {
+      brandId: matchedBrand.id,
       brandName: matchedBrand.name,
       originalQuery: query
     };

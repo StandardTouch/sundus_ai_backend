@@ -96,6 +96,9 @@ export class AlhomaidhiProductAPI {
     sort_by?: string;
     page?: number;
     per_page?: number;
+    brand_filter?: number; // Brand ID for filtering products by brand
+    min_price?: number; // Minimum price filter
+    max_price?: number; // Maximum price filter
   }): Promise<ProductListResponse> {
     try {
       const params: any = {
@@ -110,6 +113,15 @@ export class AlhomaidhiProductAPI {
       }
       if (options?.per_page) {
         params.per_page = options.per_page;
+      }
+      if (options?.brand_filter) {
+        params.brand_filter = options.brand_filter;
+      }
+      if (options?.min_price !== undefined) {
+        params.min_price = options.min_price;
+      }
+      if (options?.max_price !== undefined) {
+        params.max_price = options.max_price;
       }
 
       // Add explicit timeout wrapper to enforce timeout

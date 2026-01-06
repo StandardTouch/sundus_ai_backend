@@ -20,11 +20,25 @@ export class ProductService {
 
   /**
    * Search products by query
+   * @param query - Search query
+   * @param limit - Maximum number of products to return
+   * @param brandId - Optional brand ID to filter by brand
+   * @param minPrice - Optional minimum price filter
+   * @param maxPrice - Optional maximum price filter
    */
-  async searchProducts(query: string, limit: number = 5): Promise<Product[]> {
+  async searchProducts(
+    query: string, 
+    limit: number = 5, 
+    brandId?: number,
+    minPrice?: number,
+    maxPrice?: number
+  ): Promise<Product[]> {
     try {
       const response: ProductListResponse = await this.api.searchProducts(query, {
-        per_page: limit
+        per_page: limit,
+        ...(brandId && { brand_filter: brandId }),
+        ...(minPrice !== undefined && { min_price: minPrice }),
+        ...(maxPrice !== undefined && { max_price: maxPrice })
       });
 
       if (response.status !== "APP00") {

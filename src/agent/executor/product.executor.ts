@@ -47,68 +47,65 @@ export async function executeProductTool(
         const { extractBrandFromQuery } = await import("../../utils/brand-extractor.util.js");
         const brandExtraction = await extractBrandFromQuery(query, allBrands);
         
+        // Use AI to extract price range from the query
+        // Handles phrases like "under 500", "between 300 and 800", etc.
+        const { extractPriceRangeFromQuery } = await import("../../utils/price-extractor.util.js");
+        const priceRange = await extractPriceRangeFromQuery(query);
+        
         let detectedBrand: string | null = null;
         let matchedBrandName: string | null = null;
+        let brandId: number | undefined = undefined;
         
         if (brandExtraction) {
+          brandId = brandExtraction.brandId;
           detectedBrand = brandExtraction.brandName.toLowerCase();
           matchedBrandName = brandExtraction.brandName;
           
           logger.info("Brand extracted using AI", {
             originalQuery: brandExtraction.originalQuery,
+            brandId,
             detectedBrand,
             matchedBrandName
           });
         } else {
           logger.info("No brand detected in query", { query });
         }
-        
-        logger.info("Product search - brand detection", {
-          query,
-          detectedBrand,
-          matchedBrandName,
-          allBrandsCount: brandNames.length
-        });
 
-        // Search products with the original query
-        const products = await productService.searchProducts(query, 10); // Get more results for filtering
-        
-        // Filter products by brand if a brand was detected in the query
-        let filteredProducts = products;
-        if (detectedBrand && products.length > 0) {
-          filteredProducts = products.filter(product => {
-            const productBrands = product.brands.map(b => b.name.toLowerCase());
-            // Strict matching: product must have the exact detected brand
-            return productBrands.some(brand => brand === detectedBrand);
-          });
-          
-          logger.info("Product search - brand filtering", {
+        if (priceRange) {
+          logger.info("Price range extracted using AI", {
             query,
-            detectedBrand,
-            matchedBrandName,
-            originalCount: products.length,
-            filteredCount: filteredProducts.length,
-            filteredBrands: filteredProducts.map(p => p.brands.map(b => b.name))
+            minPrice: priceRange.minPrice,
+            maxPrice: priceRange.maxPrice
+          });
+        }
+
+        // Search products - use brand_filter, min_price, and max_price API parameters if detected
+        // This uses the API's native filtering instead of filtering results after
+        const products = await productService.searchProducts(
+          query, 
+          10, // Get more results
+          brandId, // Use brand_filter parameter in API call (filters at API level)
+          priceRange?.minPrice, // Use min_price parameter if price range detected
+          priceRange?.maxPrice // Use max_price parameter if price range detected
+        );
+        
+        // If brand was detected but no products found, the brand might not have products
+        if (brandId && products.length === 0) {
+          logger.warn("Brand filter returned no products", {
+            query,
+            brandId,
+            matchedBrandName
           });
           
-          // If filtering resulted in no products, log a warning
-          if (filteredProducts.length === 0 && products.length > 0) {
-            logger.warn("Brand filtering removed all products - brand may not exist in results", {
-              query,
-              detectedBrand,
-              matchedBrandName,
-              originalProductsBrands: products.map(p => p.brands.map(b => b.name))
-            });
-            
-            // If we detected a brand but no products match, tell user the brand isn't available
-            // Don't show wrong products from other brands
-            return {
-              success: true,
-              result: `Unfortunately, we don't have ${matchedBrandName || detectedBrand} watches available at the moment. Would you like to see watches from other brands?`,
-              should_send_feedback: true // Cannot help - task complete (brand not available)
-            };
-          }
+          return {
+            success: true,
+            result: `Unfortunately, we don't have ${matchedBrandName} watches available at the moment. Would you like to see watches from other brands?`,
+            should_send_feedback: true // Cannot help - task complete (brand not available)
+          };
         }
+        
+        // No need for additional filtering - API already filtered by brand if brandId was provided
+        let filteredProducts = products;
         
         // Detect if user is asking for a single product
         // Reuse queryLower from above (already declared on line 47)
