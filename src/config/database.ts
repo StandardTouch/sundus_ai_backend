@@ -24,7 +24,12 @@ export async function connectDatabase(): Promise<void> {
 
     logger.info("Connecting to MongoDB...", { uri: MONGODB_URI.replace(/\/\/.*@/, "//***:***@") });
 
-    client = new MongoClient(MONGODB_URI);
+    // Add connection timeout and server selection timeout for Cloud Run
+    client = new MongoClient(MONGODB_URI, {
+      serverSelectionTimeoutMS: 10000, // 10 seconds
+      connectTimeoutMS: 10000, // 10 seconds
+      socketTimeoutMS: 30000, // 30 seconds
+    });
     await client.connect();
 
     db = client.db(DB_NAME);
