@@ -41,34 +41,24 @@ export async function executeProductTool(
 
         // First, get all available brands to check if query contains a brand name
         const allBrands = await productService.listBrands();
-        const brandNames = allBrands.map(b => b.name.toLowerCase());
         
-        // Extract potential brand names from query (case-insensitive matching)
-        const queryLower = query.toLowerCase().trim();
-        const queryWords = queryLower.split(/\s+/);
+        // Use fuzzy matching to find best brand match (handles spelling mistakes)
+        const { findBestBrandMatch } = await import("../../utils/brand-matcher.util.js");
+        const brandMatch = findBestBrandMatch(query, allBrands);
         
-        // Try to match brand names - check if query contains a brand name or starts with one
         let detectedBrand: string | null = null;
-        let matchedBrandName: string | null = null; // Original brand name (for logging)
+        let matchedBrandName: string | null = null;
         
-        // First, try exact match or contains match
-        for (const brand of allBrands) {
-          const brandLower = brand.name.toLowerCase();
-          // Check if query contains the full brand name
-          if (queryLower.includes(brandLower)) {
-            detectedBrand = brandLower;
-            matchedBrandName = brand.name;
-            break;
-          }
-          // Check if brand name contains the first word(s) of the query (for "Tommy Hilfiger" matching "Tommy")
-          if (queryWords.length > 0 && brandLower.includes(queryWords[0])) {
-            // Make sure it's a reasonable match (not too short)
-            if (queryWords[0].length >= 3 && brandLower.startsWith(queryWords[0])) {
-              detectedBrand = brandLower;
-              matchedBrandName = brand.name;
-              break;
-            }
-          }
+        if (brandMatch) {
+          detectedBrand = brandMatch.brand.name.toLowerCase();
+          matchedBrandName = brandMatch.brand.name;
+          
+          logger.info("Brand matched using fuzzy matching", {
+            query,
+            detectedBrand,
+            matchedBrandName,
+            matchScore: brandMatch.score
+          });
         }
         
         logger.info("Product search - brand detection", {
@@ -107,6 +97,14 @@ export async function executeProductTool(
               matchedBrandName,
               originalProductsBrands: products.map(p => p.brands.map(b => b.name))
             });
+            
+            // If we detected a brand but no products match, tell user the brand isn't available
+            // Don't show wrong products from other brands
+            return {
+              success: true,
+              result: `Unfortunately, we don't have ${matchedBrandName || detectedBrand} watches available at the moment. Would you like to see watches from other brands?`,
+              should_send_feedback: true // Cannot help - task complete (brand not available)
+            };
           }
         }
         
@@ -173,12 +171,14 @@ export async function executeProductTool(
           ).slice(0, 5);
 
           if (uniqueSimilar.length > 0) {
-            const formatted = productService.formatProductsForAI(uniqueSimilar, 5);
-          return {
-            success: true,
-            result: `I couldn't find products matching "${query}". However, here are some similar products you might be interested in:\n\n${formatted}`,
-            should_send_feedback: true // Similar products found - task completed
-          };
+            // Return similar products with product data so templates can be sent
+            return {
+              success: true,
+              result: `I couldn't find products matching "${query}". However, here are some similar products you might be interested in:`,
+              products: uniqueSimilar,
+              isSingleProduct: false, // Multiple similar products
+              should_send_feedback: true // Similar products found - task completed
+            };
           }
 
           // If still no results, suggest browsing brands
