@@ -39,26 +39,28 @@ export async function executeProductTool(
           };
         }
 
-        // First, get all available brands to check if query contains a brand name
+        // First, get all available brands
         const allBrands = await productService.listBrands();
         
-        // Use fuzzy matching to find best brand match (handles spelling mistakes)
-        const { findBestBrandMatch } = await import("../../utils/brand-matcher.util.js");
-        const brandMatch = findBestBrandMatch(query, allBrands);
+        // Use AI to extract and understand the brand from the query
+        // This handles spelling mistakes, variations, and context understanding
+        const { extractBrandFromQuery } = await import("../../utils/brand-extractor.util.js");
+        const brandExtraction = await extractBrandFromQuery(query, allBrands);
         
         let detectedBrand: string | null = null;
         let matchedBrandName: string | null = null;
         
-        if (brandMatch) {
-          detectedBrand = brandMatch.brand.name.toLowerCase();
-          matchedBrandName = brandMatch.brand.name;
+        if (brandExtraction) {
+          detectedBrand = brandExtraction.brandName.toLowerCase();
+          matchedBrandName = brandExtraction.brandName;
           
-          logger.info("Brand matched using fuzzy matching", {
-            query,
+          logger.info("Brand extracted using AI", {
+            originalQuery: brandExtraction.originalQuery,
             detectedBrand,
-            matchedBrandName,
-            matchScore: brandMatch.score
+            matchedBrandName
           });
+        } else {
+          logger.info("No brand detected in query", { query });
         }
         
         logger.info("Product search - brand detection", {
