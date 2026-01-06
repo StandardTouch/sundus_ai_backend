@@ -51,7 +51,8 @@ function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionT
     capabilities.push(`- Assist with product searches, specifications, and availability inquiries.
     - IMPORTANT PRODUCT INFORMATION:
       * AlHomaidhi Group ONLY sells watches. We do not sell electronics, fashion items, home appliances, or any other products.
-      * When users ask about products, ask "what products do you have", "tell me about your products", or similar questions, you MUST use the search_products tool to show them our watch catalog.
+      * CRITICAL: When users ask about products, brands, or want to see watches, you MUST ALWAYS use the search_products tool FIRST. NEVER assume you know what products or brands are available. NEVER say a brand is not available without searching first. Always call search_products tool when users mention any brand name or ask to see products.
+      * IMPORTANT: When users say "show me only 1", "only one", "just 1", "show me one", they want to see ONE product from the search results (the cheapest/most affordable). Use search_products with their query - do NOT use get_product_details with product_id: 1. The number "1" refers to quantity, not a product ID.
       * NEVER make up or assume product categories - we only sell watches.
       * When showing multiple products, provide personalized recommendations based on the user's query, preferences, and product features (price, brand, availability, etc.).`);
   }
@@ -108,7 +109,7 @@ function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionT
 
 COMPANY INFORMATION:
 - AlHomaidhi Group is a watch retailer. We ONLY sell watches - we do not sell electronics, fashion items, home appliances, or any other product categories.
-- When users ask about products, you must use the search_products tool to show them our watch catalog.
+- CRITICAL: When users ask about products, brands, or want to see watches, you MUST ALWAYS use the search_products tool FIRST. NEVER assume you know what products are available. NEVER say a brand is not available without searching first. Always call search_products tool when users mention any brand name or ask to see products.
 - Never mention or suggest that we sell products other than watches.
 
 ROLE AND IDENTITY:
@@ -303,11 +304,12 @@ export class TextMessageHandler extends BaseMessageHandler {
               logger.error("Failed to parse tool arguments for phone number injection", { error });
             }
           }
-          // Get conversation ID from stored message
-          const context = storedUserMessage ? {
-            ...(storedUserMessage.conversation_id && { conversationId: storedUserMessage.conversation_id }),
-            ...(storedUserMessage.message_id && { messageId: storedUserMessage.message_id })
-          } : undefined;
+          // Get conversation ID from stored message and include user message for context
+          const context = {
+            ...(storedUserMessage?.conversation_id && { conversationId: storedUserMessage.conversation_id }),
+            ...(storedUserMessage?.message_id && { messageId: storedUserMessage.message_id }),
+            ...(userMessage && { userMessage }) // Pass user message for single product detection
+          };
           
           return executeTool(toolCall, phoneNumber, context);
         })
@@ -333,9 +335,11 @@ export class TextMessageHandler extends BaseMessageHandler {
         // Multiple products from search
         const searchResult = productToolResults.find(tr => tr.name === "search_products");
         if (searchResult?.metadata?.products) {
+          // Use isSingleProduct from tool result metadata if available, otherwise default to false
+          const isSingleProduct = searchResult.metadata.isSingleProduct ?? false;
           return {
             products: searchResult.metadata.products,
-            isSingleProduct: false
+            isSingleProduct: isSingleProduct
           };
         }
         

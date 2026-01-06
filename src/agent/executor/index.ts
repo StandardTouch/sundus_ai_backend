@@ -37,7 +37,7 @@ export interface ToolExecutionResult {
 export async function executeTool(
   toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall,
   phoneNumber?: string,
-  context?: { conversationId?: string; messageId?: string }
+  context?: { conversationId?: string; messageId?: string; userMessage?: string }
 ): Promise<ToolExecutionResult> {
   // Type guard: ensure it's a function tool call
   if (toolCall.type !== "function") {
@@ -70,7 +70,8 @@ export async function executeTool(
 
   // Route to appropriate executor based on tool name
   if (name.startsWith("search_products") || name.startsWith("get_product_details") || name.startsWith("list_brands")) {
-    const productResult = await executeProductTool(name, args);
+    // Pass user message to product executor for single product detection
+    const productResult = await executeProductTool(name, args, context?.userMessage);
     
     // Format result for OpenAI
     const content = productResult.success

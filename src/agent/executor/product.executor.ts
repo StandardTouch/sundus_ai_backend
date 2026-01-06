@@ -16,6 +16,7 @@ export interface ProductToolResult {
   error?: string;
   products?: Product[]; // Store product data for image sending
   isSingleProduct?: boolean; // True if single product, false if multiple
+  should_send_feedback?: boolean; // Flag indicating if feedback should be sent
 }
 
 /**
@@ -23,7 +24,8 @@ export interface ProductToolResult {
  */
 export async function executeProductTool(
   toolName: string,
-  args: any
+  args: any,
+  userMessage?: string // User's original message for context (to detect "show me only 1" etc.)
 ): Promise<ProductToolResult> {
   try {
     logger.info("Executing product tool", { toolName, args });
@@ -108,15 +110,20 @@ export async function executeProductTool(
         let filteredProducts = products;
         
         // Detect if user is asking for a single product
-        // Reuse queryLower from above (already declared on line 47)
+        // Check both the query and the user's original message (user might say "show me only 1" but query is just "BOSS")
+        const queryLower = query.toLowerCase();
+        const userMessageLower = userMessage?.toLowerCase() || '';
         const singleProductKeywords = [
           'a watch', 'one watch', 'single watch', 'one product', 'a product',
           'most affordable', 'cheapest', 'best price', 'lowest price',
           'most affordable watch', 'cheapest watch', 'best watch', 'one option',
-          'show me one', 'give me one', 'send me one', 'just one'
+          'show me one', 'give me one', 'send me one', 'just one',
+          'only 1', 'only one', 'show me only 1', 'show me only one',
+          'just 1', 'just show 1', 'just show one', 'show 1', 'show one',
+          'i want only 1', 'i want only one', 'give me only 1', 'give me only one'
         ];
         const isSingleProductRequest = singleProductKeywords.some(keyword => 
-          queryLower.includes(keyword)
+          queryLower.includes(keyword) || userMessageLower.includes(keyword)
         );
         
         logger.info("Product search - single product detection", {
@@ -133,8 +140,8 @@ export async function executeProductTool(
           // Sort by price (cheapest first) and take only the first one
           finalProducts = filteredProducts
             .sort((a, b) => {
-              const priceA = parseFloat(a.product_details.price.replace(/[^0-9.]/g, '')) || 0;
-              const priceB = parseFloat(b.product_details.price.replace(/[^0-9.]/g, '')) || 0;
+              const priceA = parseFloat((a.product_details?.price || '0').replace(/[^0-9.]/g, '')) || 0;
+              const priceB = parseFloat((b.product_details?.price || '0').replace(/[^0-9.]/g, '')) || 0;
               return priceA - priceB;
             })
             .slice(0, 1);
@@ -159,7 +166,7 @@ export async function executeProductTool(
           // Try broader search with individual terms
           for (const term of searchTerms) {
             if (term.length > 2) { // Only search terms longer than 2 characters
-              const broaderResults = await productService.searchProducts(term, 3);
+              const broaderResults = await productService.searchProducts(term, 3, undefined, undefined, undefined);
               similarProducts = [...similarProducts, ...broaderResults];
             }
           }
@@ -202,7 +209,8 @@ export async function executeProductTool(
         let briefSummary: string;
         if (isSingleProduct && finalProducts.length === 1) {
           // Single product - mention it's the most affordable option
-          briefSummary = `I found a ${finalProducts[0].product_details.name} for you! I'll send you the details of the most affordable option shortly.`;
+          const productName = finalProducts[0]?.product_details?.name || "product";
+          briefSummary = `I found a ${productName} for you! I'll send you the details of the most affordable option shortly.`;
         } else {
           // Multiple products
           const productCount = finalProducts.length;
@@ -310,11 +318,18 @@ export async function executeProductTool(
         };
     }
   } catch (error: any) {
-    logger.error("Product executor error", { error, toolName, args });
+    logger.error("Product executor error", { 
+      error: error?.message || error?.toString() || String(error),
+      errorStack: error?.stack,
+      errorType: error?.constructor?.name,
+      errorStringified: JSON.stringify(error, Object.getOwnPropertyNames(error)),
+      toolName, 
+      args 
+    });
     return {
       success: false,
       result: null,
-      error: error.message || "Failed to execute product tool"
+      error: error?.message || error?.toString() || "Failed to execute product tool"
     };
   }
 }
