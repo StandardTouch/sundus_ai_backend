@@ -110,8 +110,48 @@ export async function executeProductTool(
           }
         }
         
-        // Limit to 5 products after filtering
-        const finalProducts = filteredProducts.slice(0, 5);
+        // Detect if user is asking for a single product
+        const queryLower = query.toLowerCase();
+        const singleProductKeywords = [
+          'a watch', 'one watch', 'single watch', 'one product', 'a product',
+          'most affordable', 'cheapest', 'best price', 'lowest price',
+          'most affordable watch', 'cheapest watch', 'best watch', 'one option',
+          'show me one', 'give me one', 'send me one', 'just one'
+        ];
+        const isSingleProductRequest = singleProductKeywords.some(keyword => 
+          queryLower.includes(keyword)
+        );
+        
+        logger.info("Product search - single product detection", {
+          query,
+          isSingleProductRequest,
+          productsFound: filteredProducts.length
+        });
+        
+        // If user asks for a single product, return only the cheapest/most affordable one
+        let finalProducts = filteredProducts;
+        let isSingleProduct = false;
+        
+        if (isSingleProductRequest && filteredProducts.length > 0) {
+          // Sort by price (cheapest first) and take only the first one
+          finalProducts = filteredProducts
+            .sort((a, b) => {
+              const priceA = parseFloat(a.product_details.price.replace(/[^0-9.]/g, '')) || 0;
+              const priceB = parseFloat(b.product_details.price.replace(/[^0-9.]/g, '')) || 0;
+              return priceA - priceB;
+            })
+            .slice(0, 1);
+          isSingleProduct = true;
+          
+          logger.info("Product search - returning single product (most affordable)", {
+            query,
+            selectedProduct: finalProducts[0]?.product_details?.name,
+            price: finalProducts[0]?.product_details?.price
+          });
+        } else {
+          // Limit to 5 products for multiple product requests
+          finalProducts = filteredProducts.slice(0, 5);
+        }
         
         // If no products found after filtering, try to find similar products
         if (finalProducts.length === 0) {
@@ -159,15 +199,22 @@ export async function executeProductTool(
           };
         }
 
-        // For multiple products, just return a brief summary - images will be sent separately with full details
-        const productCount = finalProducts.length;
-        const briefSummary = `Found ${productCount} product${productCount > 1 ? "s" : ""} matching your search. Product images with full details (name, SKU, price, and purchase links) will be sent separately.`;
+        // Format response based on single vs multiple products
+        let briefSummary: string;
+        if (isSingleProduct && finalProducts.length === 1) {
+          // Single product - mention it's the most affordable option
+          briefSummary = `I found a ${finalProducts[0].product_details.name} for you! I'll send you the details of the most affordable option shortly.`;
+        } else {
+          // Multiple products
+          const productCount = finalProducts.length;
+          briefSummary = `Found ${productCount} product${productCount > 1 ? "s" : ""} matching your search. Product images with full details (name, SKU, price, and purchase links) will be sent separately.`;
+        }
 
         return {
           success: true,
           result: briefSummary,
           products: finalProducts,
-          isSingleProduct: false, // Multiple products
+          isSingleProduct: isSingleProduct, // Set based on user request
           should_send_feedback: true // Products found - task completed
         };
       }
