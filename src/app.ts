@@ -84,27 +84,8 @@ app.post("/", async (req: Request, res: Response) => {
   }
 });
 
-app.get("/health", async (req: Request, res: Response) => {
-  try {
-    // Check database connection
-    const { getDatabase } = await import("./config/database.js");
-    const db = getDatabase();
-    await db.admin().ping();
-    
-    res.json({ 
-      status: "healthy", 
-      database: "connected",
-      timestamp: new Date().toISOString() 
-    });
-  } catch (error) {
-    // Server is running but database is not connected
-    res.status(503).json({ 
-      status: "degraded", 
-      database: "disconnected",
-      timestamp: new Date().toISOString(),
-      message: "Server is running but database connection failed"
-    });
-  }
+app.get("/health", (req: Request, res: Response) => {
+  res.json({ status: "healthy healthy server is running", timestamp: new Date().toISOString() });
 });
 
 // Store cleanup interval for graceful shutdown
@@ -115,47 +96,23 @@ let isShuttingDown = false;
 // Initialize database and start server
 async function startServer() {
   try {
-    // Start server FIRST (Cloud Run requirement - must listen within timeout)
-    // Cloud Run requires binding to 0.0.0.0 explicitly
-    server = app.listen(PORT, "0.0.0.0", () => {
+    // Connect to MongoDB
+    await connectDatabase();
+
+    // Run initial cleanup of expired OTPs and tokens
+    logger.info("Running initial cleanup of expired OTPs and tokens...");
+    await cleanupService.cleanupExpired();
+
+    // Start periodic cleanup (runs every hour)
+    cleanupInterval = cleanupService.startPeriodicCleanup();
+
+    // Start server
+    server = app.listen(PORT, () => {
       logger.info(`Server started on port ${PORT}`, { 
         port: PORT,
-        host: "0.0.0.0",
         env: process.env.NODE_ENV || "development",
       });
     });
-
-    // Connect to MongoDB (non-blocking - server already listening)
-    // Use timeout to prevent hanging
-    const dbConnectionPromise = Promise.race([
-      connectDatabase(),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Database connection timeout (30s)")), 30000)
-      )
-    ]).catch((error) => {
-      logger.error("Database connection failed - server will continue without database", { 
-        error: error.message 
-      });
-      // Don't exit - allow server to run even if DB connection fails
-      // Health check endpoint will indicate DB status
-    });
-
-    // Run initial cleanup after DB connection (if successful)
-    dbConnectionPromise.then(async () => {
-      try {
-        logger.info("Running initial cleanup of expired OTPs and tokens...");
-        await cleanupService.cleanupExpired();
-        // Start periodic cleanup (runs every hour)
-        cleanupInterval = cleanupService.startPeriodicCleanup();
-      } catch (error) {
-        logger.error("Cleanup initialization failed", { error });
-        // Continue - cleanup is not critical for server startup
-      }
-    }).catch(() => {
-      // DB connection failed, skip cleanup
-      logger.warn("Skipping cleanup initialization - database not connected");
-    });
-
   } catch (error) {
     logger.error("Failed to start server", { error });
     process.exit(1);

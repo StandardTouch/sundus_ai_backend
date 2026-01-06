@@ -111,7 +111,7 @@ export async function executeProductTool(
         }
         
         // Detect if user is asking for a single product
-        // Reuse queryLower from above (already defined at line 47)
+        // Reuse queryLower from above (already declared on line 47)
         const singleProductKeywords = [
           'a watch', 'one watch', 'single watch', 'one product', 'a product',
           'most affordable', 'cheapest', 'best price', 'lowest price',
