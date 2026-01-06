@@ -39,10 +39,82 @@ export async function executeProductTool(
           };
         }
 
-        const products = await productService.searchProducts(query, 5);
+        // First, get all available brands to check if query contains a brand name
+        const allBrands = await productService.listBrands();
+        const brandNames = allBrands.map(b => b.name.toLowerCase());
         
-        // If no products found, try to find similar products
-        if (products.length === 0) {
+        // Extract potential brand names from query (case-insensitive matching)
+        const queryLower = query.toLowerCase().trim();
+        const queryWords = queryLower.split(/\s+/);
+        
+        // Try to match brand names - check if query contains a brand name or starts with one
+        let detectedBrand: string | null = null;
+        let matchedBrandName: string | null = null; // Original brand name (for logging)
+        
+        // First, try exact match or contains match
+        for (const brand of allBrands) {
+          const brandLower = brand.name.toLowerCase();
+          // Check if query contains the full brand name
+          if (queryLower.includes(brandLower)) {
+            detectedBrand = brandLower;
+            matchedBrandName = brand.name;
+            break;
+          }
+          // Check if brand name contains the first word(s) of the query (for "Tommy Hilfiger" matching "Tommy")
+          if (queryWords.length > 0 && brandLower.includes(queryWords[0])) {
+            // Make sure it's a reasonable match (not too short)
+            if (queryWords[0].length >= 3 && brandLower.startsWith(queryWords[0])) {
+              detectedBrand = brandLower;
+              matchedBrandName = brand.name;
+              break;
+            }
+          }
+        }
+        
+        logger.info("Product search - brand detection", {
+          query,
+          detectedBrand,
+          matchedBrandName,
+          allBrandsCount: brandNames.length
+        });
+
+        // Search products with the original query
+        const products = await productService.searchProducts(query, 10); // Get more results for filtering
+        
+        // Filter products by brand if a brand was detected in the query
+        let filteredProducts = products;
+        if (detectedBrand && products.length > 0) {
+          filteredProducts = products.filter(product => {
+            const productBrands = product.brands.map(b => b.name.toLowerCase());
+            // Strict matching: product must have the exact detected brand
+            return productBrands.some(brand => brand === detectedBrand);
+          });
+          
+          logger.info("Product search - brand filtering", {
+            query,
+            detectedBrand,
+            matchedBrandName,
+            originalCount: products.length,
+            filteredCount: filteredProducts.length,
+            filteredBrands: filteredProducts.map(p => p.brands.map(b => b.name))
+          });
+          
+          // If filtering resulted in no products, log a warning
+          if (filteredProducts.length === 0 && products.length > 0) {
+            logger.warn("Brand filtering removed all products - brand may not exist in results", {
+              query,
+              detectedBrand,
+              matchedBrandName,
+              originalProductsBrands: products.map(p => p.brands.map(b => b.name))
+            });
+          }
+        }
+        
+        // Limit to 5 products after filtering
+        const finalProducts = filteredProducts.slice(0, 5);
+        
+        // If no products found after filtering, try to find similar products
+        if (finalProducts.length === 0) {
           // Try searching for similar terms (e.g., if searching for "Nike watch", try "watch" or "Nike")
           const searchTerms = query.toLowerCase().split(/\s+/);
           let similarProducts: any[] = [];
@@ -88,13 +160,13 @@ export async function executeProductTool(
         }
 
         // For multiple products, just return a brief summary - images will be sent separately with full details
-        const productCount = products.length;
+        const productCount = finalProducts.length;
         const briefSummary = `Found ${productCount} product${productCount > 1 ? "s" : ""} matching your search. Product images with full details (name, SKU, price, and purchase links) will be sent separately.`;
 
         return {
           success: true,
           result: briefSummary,
-          products: products,
+          products: finalProducts,
           isSingleProduct: false, // Multiple products
           should_send_feedback: true // Products found - task completed
         };
