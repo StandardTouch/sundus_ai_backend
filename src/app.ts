@@ -18,6 +18,7 @@ import { conversationsRoutes } from "./conversations/index.js";
 import { faqRoutes } from "./faqs/index.js";
 import analyticsRoutes from "./analytics/routes/analytics.routes.js";
 import { bgRemovalRoutes } from "./bg-removal/index.js";
+import { locationRoutes } from "./locations/index.js";
 
 dotenv.config();
 
@@ -47,6 +48,7 @@ app.use("/api/conversations", conversationsRoutes);
 app.use("/api/faqs", faqRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/bg-removal", bgRemovalRoutes);
+app.use("/api/locations", locationRoutes);
 
 // Webhook endpoint (from AI Sensy)
 app.post("/", async (req: Request, res: Response) => {
