@@ -9,7 +9,7 @@ import { getLocationByIdController } from "../controllers/getLocationById.contro
 import { createLocationController } from "../controllers/createLocation.controller.js";
 import { updateLocationController } from "../controllers/updateLocation.controller.js";
 import { deleteLocationController } from "../controllers/deleteLocation.controller.js";
-import { authenticate, requireAdmin } from "../../middleware/auth.middleware.js";
+import { authenticate, requireAdmin, requireAdminOrSupport } from "../../middleware/auth.middleware.js";
 
 const router = Router();
 
@@ -19,7 +19,7 @@ router.get("/:id", getLocationByIdController);
 
 // Protected routes (CRUD)
 router.use(authenticate);
-router.use(requireAdmin);
+router.use(requireAdminOrSupport);
 
 router.post("/", createLocationController);
 router.put("/:id", updateLocationController);

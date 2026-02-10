@@ -69,6 +69,7 @@ export class LocationRepository {
       if (filters.search && filters.search.trim()) {
         const searchRegex = { $regex: filters.search.trim(), $options: "i" };
         query.$or = [
+          { location_id: searchRegex },
           { location_title: searchRegex },
           { location_title_ara: searchRegex },
           { location_address: searchRegex },

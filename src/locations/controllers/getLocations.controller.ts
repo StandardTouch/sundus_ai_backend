@@ -12,7 +12,18 @@ export async function getLocationsController(req: Request, res: Response): Promi
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 50;
     const search = req.query.search as string;
-    const isActive = req.query.isActive === undefined ? undefined : req.query.isActive === "true";
+    
+    // Improved isActive parsing (handles true, false, 1, 0, "true", "false")
+    const isActiveRaw = req.query.isActive;
+    let isActive: boolean | undefined = undefined;
+    
+    if (isActiveRaw !== undefined) {
+      if (isActiveRaw === "true" || isActiveRaw === "1") {
+        isActive = true;
+      } else if (isActiveRaw === "false" || isActiveRaw === "0") {
+        isActive = false;
+      }
+    }
 
     const filters: { isActive?: boolean; search?: string } = {};
     if (search) filters.search = search;
