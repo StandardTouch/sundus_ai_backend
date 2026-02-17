@@ -43,6 +43,9 @@ function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionT
   const hasFAQTools = enabledToolNames.some(name => 
     name === 'search_faqs'
   );
+  const hasLocationTool = enabledToolNames.some(name =>
+    name === "send_location"
+  );
 
   // Build capabilities section dynamically
   const capabilities: string[] = [];
@@ -79,6 +82,12 @@ function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionT
     - CRITICAL: When the search_faqs tool returns an FAQ answer, use it DIRECTLY in your response. Do NOT expand, rephrase, or add extra information unless the FAQ answer is clearly incomplete or needs clarification. For short answers (like phone numbers or brief instructions), use them exactly as provided.
     - Only provide a direct answer if the FAQ search returns no results or low confidence.
     - IMPORTANT: Never mention "FAQ database", "database", or any technical details about how you find information. Simply provide the answer naturally, or say you don't have that information if it's not available.`);
+  }
+
+  if (hasLocationTool) {
+    capabilities.push(`- Help users find AlHomaidhi locations/branches.
+    - MANDATORY: You MUST use the send_location tool when users ask about: location, address, branch, nearest branch, directions, store location, or anything related to finding where we are.
+    - IMPORTANT: Never make up addresses or locations. Always trigger the location template via the tool.`);
   }
   
   // Always available capabilities
@@ -185,6 +194,7 @@ export class TextMessageHandler extends BaseMessageHandler {
     productData?: { products: Product[]; isSingleProduct: boolean };
     orderData?: { order: any; isSingleOrder: boolean };
     shouldSendFeedback?: boolean; // Flag indicating if feedback should be sent
+    shouldSendLocationTemplate?: boolean; // Flag indicating location template should be sent
   }> {
     // Get enabled tools from database (respects admin settings)
     tracker.addEvent("Getting enabled tools from database");
@@ -239,17 +249,22 @@ export class TextMessageHandler extends BaseMessageHandler {
       tool_choice: enabledTools.length > 0 ? "auto" : "none" // Disable tool calling if no tools enabled
     });
     
-    const timeoutPromise = new Promise<ChatCompletionResult>((resolve) => 
-      setTimeout(() => {
+    let firstCallTimeoutId: NodeJS.Timeout | null = null;
+    const timeoutPromise = new Promise<ChatCompletionResult>((resolve) => {
+      firstCallTimeoutId = setTimeout(() => {
         logger.warn("OpenAI first call timeout - request may still be processing", {
           timeoutMs: 25000,
           phoneNumber
         });
         resolve({ success: false, error: "Request timeout. Please try again." });
       }, 25000) // 25s timeout (increased from 10s for production)
-    );
+    });
     
-    const firstResult: ChatCompletionResult = await Promise.race([firstResultPromise, timeoutPromise]).catch(error => {
+    const firstResult: ChatCompletionResult = await Promise.race([firstResultPromise, timeoutPromise])
+      .finally(() => {
+        if (firstCallTimeoutId) clearTimeout(firstCallTimeoutId);
+      })
+      .catch(error => {
       logger.error("OpenAI first call error", { 
         error: error.message,
         phoneNumber,
@@ -383,6 +398,12 @@ export class TextMessageHandler extends BaseMessageHandler {
         return metadata?.should_send_feedback === true;
       });
 
+      // Check tool results for location template flag
+      const shouldSendLocationTemplateFromTools = toolResults.some(tr => {
+        const metadata = tr.metadata as any;
+        return metadata?.should_send_location_template === true;
+      });
+
       // Add assistant message with tool calls to conversation
       // OpenAI requires tool_calls to be included in the assistant message
       // The tool_calls from OpenAI are already in the correct format
@@ -456,8 +477,9 @@ export class TextMessageHandler extends BaseMessageHandler {
         max_tokens: 500 // Reduced for faster responses
       });
       
-      const finalTimeoutPromise = new Promise<ChatCompletionResult>((resolve) => 
-        setTimeout(() => {
+      let finalCallTimeoutId: NodeJS.Timeout | null = null;
+      const finalTimeoutPromise = new Promise<ChatCompletionResult>((resolve) => {
+        finalCallTimeoutId = setTimeout(() => {
           logger.warn("OpenAI final call timeout - request may still be processing", {
             timeoutMs: 30000,
             phoneNumber,
@@ -465,9 +487,13 @@ export class TextMessageHandler extends BaseMessageHandler {
           });
           resolve({ success: false, error: "Response generation timeout. Please try again." });
         }, 30000) // 30s timeout (increased from 15s for production)
-      );
+      });
       
-      const finalResult: ChatCompletionResult = await Promise.race([finalResultPromise, finalTimeoutPromise]).catch(error => {
+      const finalResult: ChatCompletionResult = await Promise.race([finalResultPromise, finalTimeoutPromise])
+        .finally(() => {
+          if (finalCallTimeoutId) clearTimeout(finalCallTimeoutId);
+        })
+        .catch(error => {
         logger.error("OpenAI final call error", { 
           error: error.message,
           phoneNumber,
@@ -573,9 +599,11 @@ export class TextMessageHandler extends BaseMessageHandler {
         productData?: { products: Product[]; isSingleProduct: boolean };
         orderData?: { order: Order; isSingleOrder: boolean };
         shouldSendFeedback?: boolean;
+        shouldSendLocationTemplate?: boolean;
       } = {
         message: finalResult.message,
-        shouldSendFeedback: shouldSendFeedbackFromTools
+        shouldSendFeedback: shouldSendFeedbackFromTools,
+        shouldSendLocationTemplate: shouldSendLocationTemplateFromTools
       };
       
       if (productData) {
@@ -694,6 +722,7 @@ export class TextMessageHandler extends BaseMessageHandler {
     let aiResponse: string;
     const productData = aiResult.productData;
     const orderData = aiResult.orderData;
+    const shouldSendLocationTemplate = aiResult.shouldSendLocationTemplate === true;
     
     if (!aiResult.message) {
       logger.error("OpenAI processing failed - no message returned", { 
@@ -725,7 +754,8 @@ export class TextMessageHandler extends BaseMessageHandler {
       logger.error("No AI response to send", { 
         phoneNumber,
         hasProductData: !!productData,
-        hasOrderData: !!orderData
+        hasOrderData: !!orderData,
+        shouldSendLocationTemplate
       });
       const fallbackResponse = "I apologize, but I'm having trouble processing your message right now. Please try again in a moment.";
       await this.sendMessage(phoneNumber, fallbackResponse, tracker);
@@ -754,6 +784,72 @@ export class TextMessageHandler extends BaseMessageHandler {
     
     // Store assistant message with response time and accuracy data
     tracker.addEvent("Storing assistant message");
+    // If location template is requested, do NOT store a synthetic assistant message ID.
+    // We will store the actual template message returned by AI Sensy instead.
+    if (shouldSendLocationTemplate) {
+      tracker.addEvent("Sending location template (no variables)");
+
+      const language = userMessageLanguage || detectLanguage(sanitizedText);
+      const templateName = language === "ar" ? "location_ar" : "location_en";
+      // IMPORTANT: Match WhatsApp template language codes configured in AI Sensy.
+      // Most templates in this codebase use "en" and "ar".
+      const languageCode = language === "ar" ? "ar" : "en";
+
+      logger.info("Sending location template", {
+        phoneNumber,
+        templateName,
+        languageCode,
+        language
+      });
+
+      const templateResult = await this.aisensyService.sendTemplateMessage(
+        phoneNumber,
+        templateName,
+        languageCode
+        // No components/variables
+      );
+
+      if (templateResult.success && templateResult.message_id) {
+        // Store the template message so replies can be correlated
+        await conversationService.storeAssistantMessage(
+          phoneNumber,
+          templateResult.message_id,
+          "Location template sent",
+          {
+            template_name: templateName,
+            is_location_template: true,
+            language,
+            response_time_ms: Math.round(totalResponseTime),
+            openai_time_ms: Math.round(openaiTime),
+            processing_time_ms: Math.round(processingTime),
+            should_send_feedback: false
+          },
+          storedUserMessage?.conversation_id
+        );
+
+        logger.info("Location template sent and stored", {
+          phoneNumber,
+          messageId: templateResult.message_id,
+          templateName,
+          language
+        });
+      } else {
+        logger.error("Failed to send location template", {
+          phoneNumber,
+          error: templateResult.error,
+          templateName
+        });
+
+        // Fallback to text if template fails
+        const fallbackText = language === "ar"
+          ? "عذرًا، لا أستطيع إرسال موقعنا الآن. يرجى المحاولة مرة أخرى لاحقًا."
+          : "Sorry, I couldn't send our location right now. Please try again later.";
+        await this.sendMessage(phoneNumber, fallbackText, tracker);
+      }
+
+      return tracker.getResult();
+    }
+
     const assistantMessageId = `assistant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const metadata: ConversationMessage['metadata'] = {
       response_time_ms: Math.round(totalResponseTime),
