@@ -6,6 +6,7 @@
 import { executeProductTool, type ProductToolResult } from "./product.executor.js";
 import { executeOrderTool } from "./order.executor.js";
 import { executeFAQTool } from "./faq.executor.js";
+import { executeLocationTool } from "./location.executor.js";
 import { logger } from "../../utils/logger.js";
 import type OpenAI from "openai";
 
@@ -25,6 +26,7 @@ export interface ToolExecutionResult {
     order?: any;
     isSingleOrder?: boolean;
     should_send_feedback?: boolean; // Flag indicating if feedback should be sent after this tool execution
+    should_send_location_template?: boolean; // Flag indicating location template should be sent after this tool execution
   };
 }
 
@@ -162,10 +164,11 @@ export async function executeTool(
       ...(orderResult.metadata && { metadata: orderResult.metadata })
     };
   } else if (name === "search_faqs") {
+    // With exactOptionalPropertyTypes, do not pass explicit `undefined` values.
     const faqContext = {
-      conversationId: context?.conversationId,
-      messageId: context?.messageId,
-      phoneNumber: phoneNumber
+      ...(context?.conversationId ? { conversationId: context.conversationId } : {}),
+      ...(context?.messageId ? { messageId: context.messageId } : {}),
+      ...(phoneNumber ? { phoneNumber } : {})
     };
     const faqResult = await executeFAQTool(name, args, faqContext);
     
@@ -180,6 +183,22 @@ export async function executeTool(
       role: "tool",
       name,
       content: typeof content === "string" ? content : JSON.stringify(content)
+    };
+  } else if (name === "send_location") {
+    const locationResult = await executeLocationTool(name);
+
+    const content = locationResult.success
+      ? (locationResult.result || "Location template requested.")
+      : JSON.stringify({ error: locationResult.error || "Location tool failed" });
+
+    return {
+      tool_call_id: id,
+      role: "tool",
+      name,
+      content: typeof content === "string" ? content : JSON.stringify(content),
+      metadata: {
+        should_send_location_template: locationResult.success === true,
+      },
     };
   } else {
     // Unknown tool

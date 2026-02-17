@@ -52,6 +52,11 @@ const TOOL_METADATA: Record<string, { category: string; displayName: string; des
     category: "faqs",
     displayName: "Search FAQs",
     description: "Search the FAQ database for answers to common questions about policies, procedures, shipping, returns, payment, orders, products, and general information."
+  },
+  send_location: {
+    category: "general",
+    displayName: "Send Location",
+    description: "Send our location/branch information to the user. Use this when the user asks for: location, address, branch, nearest branch, directions, store location, or anything related to finding where AlHomaidhi is located. This sends a pre-approved WhatsApp template (location_en/location_ar) with no variables."
   }
 };
 
@@ -69,10 +74,16 @@ async function initToolSettings() {
 
     // Process each tool
     for (const tool of allTools) {
+      // allTools should be function tools, but guard for type safety
+      if (tool.type !== "function") {
+        logger.warn("Skipping non-function tool in seeding script", { toolType: tool.type });
+        continue;
+      }
+
       const toolName = tool.function.name;
       const metadata = TOOL_METADATA[toolName] || {
         category: "general",
-        displayName: toolName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+        displayName: toolName.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
         description: tool.function.description || `Tool: ${toolName}`
       };
 

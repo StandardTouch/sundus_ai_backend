@@ -6,6 +6,7 @@
 import { productTools } from "./product.tools.js";
 import { trackOrderTool, getOrderDetailsTool } from "./order.tools.js";
 import { faqTools } from "./faq.tools.js";
+import { locationTools } from "./location.tools.js";
 import { toolSettingsService } from "../../services/tool-settings.service.js";
 import type OpenAI from "openai";
 
@@ -18,6 +19,7 @@ export const allTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   trackOrderTool,
   getOrderDetailsTool,
   ...faqTools,
+  ...locationTools,
 ];
 
 /**
@@ -35,5 +37,6 @@ export const getToolsByCategory = {
   products: productTools,
   orders: [trackOrderTool, getOrderDetailsTool],
   faqs: faqTools,
+  general: locationTools,
 };
 
