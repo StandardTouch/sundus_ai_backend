@@ -16,18 +16,13 @@ export const locationTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
-      name: "search_locations",
+      name: "send_location",
       description:
-        "Search for AlHomaidhi branch locations by city, state, or branch name. Use this when the user asks for: location, address, branch, nearest branch, or directions. If the user hasn't specified a city or state, ask them first before calling this tool.",
+        "Send our location/branch information to the user. Use this when the user asks for: location, address, branch, nearest branch, store location, directions, shop location, service center location, 'where are you located?', 'وين موقعكم؟', 'أقرب فرع', or anything related to finding AlHomaidhi locations. This will trigger sending a WhatsApp template message with the location details in the user's language.",
       parameters: {
         type: "object",
-        properties: {
-          query: {
-            type: "string",
-            description: "The city, state, or area to search for (e.g., 'Riyadh', 'Jeddah', 'Abu Dhiba').",
-          },
-        },
-        required: ["query"],
+        properties: {},
+        required: [],
       },
     },
   },

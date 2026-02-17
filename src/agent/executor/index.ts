@@ -7,6 +7,7 @@ import { executeProductTool, type ProductToolResult } from "./product.executor.j
 import { executeOrderTool } from "./order.executor.js";
 import { executeFAQTool } from "./faq.executor.js";
 import { executeLocationTool } from "./location.executor.js";
+import { executeLocationTool } from "./location.executor.js";
 import { logger } from "../../utils/logger.js";
 import type OpenAI from "openai";
 
@@ -19,15 +20,14 @@ export interface ToolExecutionResult {
   name: string;
   content: string;
   metadata?: {
-    products?: any[] | undefined;
-    isSingleProduct?: boolean | undefined;
-    orders?: any[] | undefined;
-    orderCount?: number | undefined;
-    order?: any | undefined;
-    isSingleOrder?: boolean | undefined;
-    locations?: any[] | undefined;
-    should_send_feedback?: boolean | undefined; // Flag indicating if feedback should be sent after this tool execution
-    should_send_location_template?: boolean | undefined; // Flag indicating location template should be sent after this tool execution
+    products?: any[];
+    isSingleProduct?: boolean;
+    orders?: any[];
+    orderCount?: number;
+    order?: any;
+    isSingleOrder?: boolean;
+    should_send_feedback?: boolean; // Flag indicating if feedback should be sent after this tool execution
+    should_send_location_template?: boolean; // Flag indicating location template should be sent after this tool execution
   };
 }
 
@@ -166,7 +166,11 @@ export async function executeTool(
     };
   } else if (name === "search_faqs") {
     // With exactOptionalPropertyTypes, do not pass explicit `undefined` values.
+    // With exactOptionalPropertyTypes, do not pass explicit `undefined` values.
     const faqContext = {
+      ...(context?.conversationId ? { conversationId: context.conversationId } : {}),
+      ...(context?.messageId ? { messageId: context.messageId } : {}),
+      ...(phoneNumber ? { phoneNumber } : {})
       ...(context?.conversationId ? { conversationId: context.conversationId } : {}),
       ...(context?.messageId ? { messageId: context.messageId } : {}),
       ...(phoneNumber ? { phoneNumber } : {})
@@ -185,11 +189,11 @@ export async function executeTool(
       name,
       content: typeof content === "string" ? content : JSON.stringify(content)
     };
-  } else if (name === "search_locations") {
-    const locationResult = await executeLocationTool(toolCall);
+  } else if (name === "send_location") {
+    const locationResult = await executeLocationTool(name);
 
     const content = locationResult.success
-      ? (locationResult.result || "Location search completed.")
+      ? (locationResult.result || "Location template requested.")
       : JSON.stringify({ error: locationResult.error || "Location tool failed" });
 
     return {
@@ -198,7 +202,7 @@ export async function executeTool(
       name,
       content: typeof content === "string" ? content : JSON.stringify(content),
       metadata: {
-        locations: locationResult.locations,
+        should_send_location_template: locationResult.success === true,
       },
     };
   } else {
