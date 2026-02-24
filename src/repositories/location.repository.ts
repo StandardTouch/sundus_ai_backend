@@ -75,7 +75,6 @@ export class LocationRepository {
           { location_address: searchRegex },
           { location_address_ara: searchRegex },
           { city: searchRegex },
-          { state: searchRegex },
           { country: searchRegex },
           { store_manager_name: searchRegex },
           { store_manager_phone: searchRegex }
@@ -131,6 +130,7 @@ export class LocationRepository {
       const location: Omit<Location, "_id"> & { _id?: any } = {
         ...createData,
         location_id: nextId, // Use generated ID
+        // location_animation: createData.location_animation || "DROP",
         // location_animation: createData.location_animation || "DROP",
         isActive: createData.isActive !== undefined ? createData.isActive : true,
         created_at: now,
