@@ -652,6 +652,7 @@ export class TextMessageHandler extends BaseMessageHandler {
         productData?: { products: Product[]; isSingleProduct: boolean };
         orderData?: { order: Order; isSingleOrder: boolean };
         shouldSendFeedback?: boolean;
+        shouldSendLocationTemplate?: boolean;
       } = {
         message: finalResult.message,
         shouldSendFeedback: shouldSendFeedbackFromTools,
