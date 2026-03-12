@@ -75,6 +75,7 @@ export class LocationRepository {
           { location_address: searchRegex },
           { location_address_ara: searchRegex },
           { city: searchRegex },
+          { state: searchRegex },
           { country: searchRegex },
           { store_manager_name: searchRegex },
           { store_manager_phone: searchRegex }
