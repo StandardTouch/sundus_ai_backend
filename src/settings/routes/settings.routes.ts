@@ -12,6 +12,7 @@ import { getAllToolsController } from "../controllers/getAllTools.controller.js"
 import { toggleToolController } from "../controllers/toggleTool.controller.js";
 import { updateToolController } from "../controllers/updateTool.controller.js";
 import { getOpenAICreditStatusController } from "../controllers/getOpenAICreditStatus.controller.js";
+import { resetOpenAICreditStatusController } from "../controllers/resetOpenAICreditStatus.controller.js";
 import { authenticate, requireAdminOrSupport } from "../../middleware/auth.middleware.js";
 
 const router = Router();
@@ -43,6 +44,9 @@ router.put("/tools/:toolName", updateToolController);
 
 // GET /api/settings/openai-credit-status - Get OpenAI credit availability status
 router.get("/openai-credit-status", getOpenAICreditStatusController);
+
+// POST /api/settings/openai-credit-status/reset - Reset OpenAI credit availability status
+router.post("/openai-credit-status/reset", resetOpenAICreditStatusController);
 
 export default router;
 
