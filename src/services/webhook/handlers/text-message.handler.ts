@@ -44,7 +44,7 @@ function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionT
     name === 'search_faqs'
   );
   const hasLocationTool = enabledToolNames.some(name =>
-    name === "send_location"
+    name === "search_locations"
   );
 
   // Build capabilities section dynamically
@@ -85,9 +85,11 @@ function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionT
   }
 
   if (hasLocationTool) {
-    capabilities.push(`- Help users find AlHomaidhi locations/branches.
-    - MANDATORY: You MUST use the send_location tool when users ask about: location, address, branch, nearest branch, directions, store location, or anything related to finding where we are.
-    - IMPORTANT: Never make up addresses or locations. Always trigger the location template via the tool.`);
+    capabilities.push(`- Help users find AlHomaidhi locations/branches by searching in our database.
+    - MANDATORY: When a user asks about: location, address, branch, nearest branch, directions, or store location:
+      1. If the user has NOT provided a city, state, or area, you MUST FIRST ask them: "Which city or state are you in? I can help you find the nearest branch."
+      2. If the user HAS provided a city or state (e.g., "Riyadh", "Abu Dhiba"), use the search_locations tool with that query.
+    - NEVER make up addresses. Always use the information returned by the search_locations tool.`);
   }
   
   // Always available capabilities
@@ -242,11 +244,37 @@ export class TextMessageHandler extends BaseMessageHandler {
       };
     }
 
+    // Detect if the user is asking about location and force the tool call
+    // This prevents the AI from using its training knowledge about locations
+    const hasLocationTool = enabledTools.some(t => {
+      const tool = t as any;
+      return tool.type === "function" && tool.function.name === "search_locations";
+    });
+    
+    const locationKeywords = [
+      // English
+      "location", "address", "branch", "store", "directions", "where", "nearest", "find",
+      // Arabic
+      "موقع", "عنوان", "فرع", "متجر", "اتجاهات", "أين", "أقرب", "فروع"
+    ];
+    
+    const isLocationQuery = hasLocationTool && locationKeywords.some(kw =>
+      userMessage.toLowerCase().includes(kw.toLowerCase())
+    );
+
+    const toolChoice: any = isLocationQuery
+      ? { type: "function", function: { name: "search_locations" } }
+      : (enabledTools.length > 0 ? "auto" : "none");
+
+    if (isLocationQuery) {
+      logger.info("Location query detected – forcing search_locations tool call", { phoneNumber });
+    }
+
     const firstResultPromise = openaiService.chatCompletion(messages, {
       temperature: 0.7,
       max_tokens: 500, // Reduced for faster responses
       tools: enabledTools,
-      tool_choice: enabledTools.length > 0 ? "auto" : "none" // Disable tool calling if no tools enabled
+      tool_choice: toolChoice
     });
     
     let firstCallTimeoutId: NodeJS.Timeout | null = null;
@@ -398,11 +426,8 @@ export class TextMessageHandler extends BaseMessageHandler {
         return metadata?.should_send_feedback === true;
       });
 
-      // Check tool results for location template flag
-      const shouldSendLocationTemplateFromTools = toolResults.some(tr => {
-        const metadata = tr.metadata as any;
-        return metadata?.should_send_location_template === true;
-      });
+      // Legacy location template logic removed in favor of dynamic search
+
 
       // Add assistant message with tool calls to conversation
       // OpenAI requires tool_calls to be included in the assistant message
@@ -443,6 +468,34 @@ export class TextMessageHandler extends BaseMessageHandler {
         tool_call_id: result.tool_call_id,
         name: result.name
       }));
+
+      // BYPASS: If location search returned zero results, skip the second AI call entirely.
+      // This is the critical guard that prevents hallucination — the AI never sees the
+      // "no results" data and therefore cannot invent a fake address.
+      const locationToolResult = toolResults.find(tr => tr.name === "search_locations");
+      
+      if (locationToolResult && locationToolResult.content.includes("[TOOL_STATUS: NO_RESULTS]")) {
+        logger.info("Bypassing final OpenAI call for zero-result location query", { phoneNumber });
+        const content = locationToolResult.content || "";
+        const userLanguage = detectLanguage(userMessage);
+
+        let finalResponse = "";
+        if (userLanguage === 'ar') {
+          const arMatch = content.match(/AR:\s*([\s\S]*?)(?=\n\n\[INSTRUCTION:|$)/);
+          finalResponse = arMatch ? arMatch[1]!.trim() : "عذراً، لا يوجد لدينا فرع حالياً في هذا الموقع.";
+        } else {
+          const enMatch = content.match(/EN:\s*([\s\S]*?)(?=\n\nAR:|$)/);
+          finalResponse = enMatch ? enMatch[1]!.trim() : "Currently, we don't have a branch in this location.";
+        }
+
+        // Final safety strip of any internal tags
+        finalResponse = finalResponse.replace(/\[(INTERNAL|INSTRUCTION|ADMIN_ONLY|TOOL_STATUS):.*?\]/g, "").trim();
+
+        return {
+          ...tracker.getResult(),
+          message: finalResponse
+        };
+      }
 
       // Second call: AI formats final response with tool results
       tracker.addEvent("Getting final response from OpenAI with tool results");
@@ -599,11 +652,9 @@ export class TextMessageHandler extends BaseMessageHandler {
         productData?: { products: Product[]; isSingleProduct: boolean };
         orderData?: { order: Order; isSingleOrder: boolean };
         shouldSendFeedback?: boolean;
-        shouldSendLocationTemplate?: boolean;
       } = {
         message: finalResult.message,
         shouldSendFeedback: shouldSendFeedbackFromTools,
-        shouldSendLocationTemplate: shouldSendLocationTemplateFromTools
       };
       
       if (productData) {
@@ -786,69 +837,8 @@ export class TextMessageHandler extends BaseMessageHandler {
     tracker.addEvent("Storing assistant message");
     // If location template is requested, do NOT store a synthetic assistant message ID.
     // We will store the actual template message returned by AI Sensy instead.
-    if (shouldSendLocationTemplate) {
-      tracker.addEvent("Sending location template (no variables)");
+    // Legacy location template handling removed
 
-      const language = userMessageLanguage || detectLanguage(sanitizedText);
-      const templateName = language === "ar" ? "location_ar" : "location_en";
-      // IMPORTANT: Match WhatsApp template language codes configured in AI Sensy.
-      // Most templates in this codebase use "en" and "ar".
-      const languageCode = language === "ar" ? "ar" : "en";
-
-      logger.info("Sending location template", {
-        phoneNumber,
-        templateName,
-        languageCode,
-        language
-      });
-
-      const templateResult = await this.aisensyService.sendTemplateMessage(
-        phoneNumber,
-        templateName,
-        languageCode
-        // No components/variables
-      );
-
-      if (templateResult.success && templateResult.message_id) {
-        // Store the template message so replies can be correlated
-        await conversationService.storeAssistantMessage(
-          phoneNumber,
-          templateResult.message_id,
-          "Location template sent",
-          {
-            template_name: templateName,
-            is_location_template: true,
-            language,
-            response_time_ms: Math.round(totalResponseTime),
-            openai_time_ms: Math.round(openaiTime),
-            processing_time_ms: Math.round(processingTime),
-            should_send_feedback: false
-          },
-          storedUserMessage?.conversation_id
-        );
-
-        logger.info("Location template sent and stored", {
-          phoneNumber,
-          messageId: templateResult.message_id,
-          templateName,
-          language
-        });
-      } else {
-        logger.error("Failed to send location template", {
-          phoneNumber,
-          error: templateResult.error,
-          templateName
-        });
-
-        // Fallback to text if template fails
-        const fallbackText = language === "ar"
-          ? "عذرًا، لا أستطيع إرسال موقعنا الآن. يرجى المحاولة مرة أخرى لاحقًا."
-          : "Sorry, I couldn't send our location right now. Please try again later.";
-        await this.sendMessage(phoneNumber, fallbackText, tracker);
-      }
-
-      return tracker.getResult();
-    }
 
     const assistantMessageId = `assistant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const metadata: ConversationMessage['metadata'] = {

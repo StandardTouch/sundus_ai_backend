@@ -19,14 +19,15 @@ export interface ToolExecutionResult {
   name: string;
   content: string;
   metadata?: {
-    products?: any[];
-    isSingleProduct?: boolean;
-    orders?: any[];
-    orderCount?: number;
-    order?: any;
-    isSingleOrder?: boolean;
-    should_send_feedback?: boolean; // Flag indicating if feedback should be sent after this tool execution
-    should_send_location_template?: boolean; // Flag indicating location template should be sent after this tool execution
+    products?: any[] | undefined;
+    isSingleProduct?: boolean | undefined;
+    orders?: any[] | undefined;
+    orderCount?: number | undefined;
+    order?: any | undefined;
+    isSingleOrder?: boolean | undefined;
+    locations?: any[] | undefined;
+    should_send_feedback?: boolean | undefined; // Flag indicating if feedback should be sent after this tool execution
+    should_send_location_template?: boolean | undefined; // Flag indicating location template should be sent after this tool execution
   };
 }
 
@@ -184,11 +185,11 @@ export async function executeTool(
       name,
       content: typeof content === "string" ? content : JSON.stringify(content)
     };
-  } else if (name === "send_location") {
-    const locationResult = await executeLocationTool(name);
+  } else if (name === "search_locations") {
+    const locationResult = await executeLocationTool(toolCall);
 
     const content = locationResult.success
-      ? (locationResult.result || "Location template requested.")
+      ? (locationResult.result || "Location search completed.")
       : JSON.stringify({ error: locationResult.error || "Location tool failed" });
 
     return {
@@ -197,7 +198,7 @@ export async function executeTool(
       name,
       content: typeof content === "string" ? content : JSON.stringify(content),
       metadata: {
-        should_send_location_template: locationResult.success === true,
+        locations: locationResult.locations,
       },
     };
   } else {
