@@ -1,13 +1,6 @@
 /**
  * Location Tool
- * Tool definition for sending location/branch templates
- *
- * IMPORTANT:
- * - This tool does NOT return dynamic data.
- * - When called, the backend will send a pre-approved WhatsApp template:
- *   - Arabic:  location_ar
- *   - English: location_en
- * - No variables/components are passed to the template.
+ * Tool definition for searching branch locations (dynamic).
  */
 
 import type OpenAI from "openai";
@@ -18,11 +11,24 @@ export const locationTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "send_location",
       description:
-        "Send our location/branch information to the user. Use this when the user asks for: location, address, branch, nearest branch, store location, directions, shop location, service center location, 'where are you located?', 'وين موقعكم؟', 'أقرب فرع', or anything related to finding AlHomaidhi locations. This will trigger sending a WhatsApp template message with the location details in the user's language.",
+        "Search for AlHomaidhi branch locations. Use query for city/state/branch name OR use user coordinates (lat/lng) to sort by nearest. If the user asks for the nearest branch and has not provided a city/area, ask them to share their WhatsApp location pin instead of guessing.",
       parameters: {
         type: "object",
-        properties: {},
-        required: [],
+        properties: {
+          query: {
+            type: "string",
+            description: "The city, state, or area to search for (e.g., 'Riyadh', 'Jeddah', 'Abu Dhiba').",
+          },
+          user_lat: {
+            type: "number",
+            description: "User latitude (from a shared location pin).",
+          },
+          user_lng: {
+            type: "number",
+            description: "User longitude (from a shared location pin).",
+          },
+        },
+        anyOf: [{ required: ["query"] }, { required: ["user_lat", "user_lng"] }],
       },
     },
   },

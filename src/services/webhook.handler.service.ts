@@ -13,6 +13,7 @@ import {
   ImageMessageHandler,
   AudioMessageHandler,
   QuickReplyMessageHandler,
+  LocationMessageHandler,
   DefaultMessageHandler
 } from "./webhook/handlers/index.js";
 
@@ -50,6 +51,7 @@ export class WebhookHandlerService {
   private imageHandler: ImageMessageHandler;
   private audioHandler: AudioMessageHandler;
   private quickReplyHandler: QuickReplyMessageHandler;
+  private locationHandler: LocationMessageHandler;
   private defaultHandler: DefaultMessageHandler;
 
   constructor() {
@@ -61,6 +63,7 @@ export class WebhookHandlerService {
     this.imageHandler = new ImageMessageHandler();
     this.audioHandler = new AudioMessageHandler();
     this.quickReplyHandler = new QuickReplyMessageHandler();
+    this.locationHandler = new LocationMessageHandler();
     this.defaultHandler = new DefaultMessageHandler();
     
     // Clean up old message IDs periodically
@@ -134,6 +137,10 @@ export class WebhookHandlerService {
         
         case "QUICK_REPLY":
           result = await this.quickReplyHandler.handle(phoneNumber, message, tracker);
+          break;
+
+        case "LOCATION":
+          result = await this.locationHandler.handle(phoneNumber, message, tracker);
           break;
         
         default:

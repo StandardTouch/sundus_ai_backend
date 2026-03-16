@@ -85,9 +85,11 @@ function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionT
   }
 
   if (hasLocationTool) {
-    capabilities.push(`- Help users find AlHomaidhi locations/branches.
-    - MANDATORY: You MUST use the send_location tool when users ask about: location, address, branch, nearest branch, directions, store location, or anything related to finding where we are.
-    - IMPORTANT: Never make up addresses or locations. Always trigger the location template via the tool.`);
+    capabilities.push(`- Help users find AlHomaidhi locations/branches by searching in our database.
+    - MANDATORY: When a user asks about: location, address, branch, nearest branch, directions, or store location:
+      1. If the user asks for the NEAREST/CLOSEST branch and has NOT provided a city/area, ask them to SHARE THEIR LOCATION PIN on WhatsApp (do NOT ask for time).
+      2. If the user asks for location/branch/address and has provided a city/area (e.g., "Riyadh", "Abu Dhiba"), use the search_locations tool with that query.
+    - NEVER make up addresses. Always use the information returned by the search_locations tool.`);
   }
   
   // Always available capabilities
@@ -256,17 +258,31 @@ export class TextMessageHandler extends BaseMessageHandler {
       // Arabic
       "موقع", "عنوان", "فرع", "متجر", "اتجاهات", "أين", "أقرب", "فروع"
     ];
+
+    const nearestKeywords = [
+      "nearest",
+      "closest",
+      "near me",
+      "أقرب",
+      "قريب",
+    ];
     
     const isLocationQuery = hasLocationTool && locationKeywords.some(kw =>
       userMessage.toLowerCase().includes(kw.toLowerCase())
     );
 
-    const toolChoice: any = isLocationQuery
+    const shouldAskForPin = isLocationQuery && nearestKeywords.some(kw =>
+      userMessage.toLowerCase().includes(kw.toLowerCase())
+    ) && !userMessage.toLowerCase().includes(" in ") && !userMessage.includes(" في ");
+
+    const toolChoice: any = (isLocationQuery && !shouldAskForPin)
       ? { type: "function", function: { name: "search_locations" } }
       : (enabledTools.length > 0 ? "auto" : "none");
 
-    if (isLocationQuery) {
+    if (isLocationQuery && !shouldAskForPin) {
       logger.info("Location query detected – forcing search_locations tool call", { phoneNumber });
+    } else if (shouldAskForPin) {
+      logger.info("Nearest branch requested – allowing AI to ask for location pin", { phoneNumber });
     }
 
     const firstResultPromise = openaiService.chatCompletion(messages, {
@@ -485,18 +501,40 @@ export class TextMessageHandler extends BaseMessageHandler {
       // "no results" data and therefore cannot invent a fake address.
       const locationToolResult = toolResults.find(tr => tr.name === "search_locations");
       
-      if (locationToolResult && locationToolResult.content.includes("[TOOL_STATUS: NO_RESULTS]")) {
+      const isLocationNoResults = (() => {
+        if (!locationToolResult?.content) return false;
+        // Backward-compatible tag
+        if (locationToolResult.content.includes("[TOOL_STATUS: NO_RESULTS]")) return true;
+        // New JSON format
+        try {
+          const parsed = JSON.parse(locationToolResult.content);
+          return parsed?.tool_status === "NO_RESULTS";
+        } catch {
+          return false;
+        }
+      })();
+
+      if (locationToolResult && isLocationNoResults) {
         logger.info("Bypassing final OpenAI call for zero-result location query", { phoneNumber });
         const content = locationToolResult.content || "";
         const userLanguage = detectLanguage(userMessage);
 
         let finalResponse = "";
-        if (userLanguage === 'ar') {
-          const arMatch = content.match(/AR:\s*([\s\S]*?)(?=\n\n\[INSTRUCTION:|$)/);
-          finalResponse = arMatch ? arMatch[1]!.trim() : "عذراً، لا يوجد لدينا فرع حالياً في هذا الموقع.";
-        } else {
-          const enMatch = content.match(/EN:\s*([\s\S]*?)(?=\n\nAR:|$)/);
-          finalResponse = enMatch ? enMatch[1]!.trim() : "Currently, we don't have a branch in this location.";
+        // Prefer JSON messages if available
+        try {
+          const parsed = JSON.parse(content);
+          const msgEn = parsed?.messages?.en;
+          const msgAr = parsed?.messages?.ar;
+          if (userLanguage === "ar") finalResponse = String(msgAr || "عذراً، لا يوجد لدينا فرع حالياً في هذا الموقع.");
+          else finalResponse = String(msgEn || "Currently, we don't have a branch in this location.");
+        } catch {
+          if (userLanguage === 'ar') {
+            const arMatch = content.match(/AR:\s*([\s\S]*?)(?=\n\n\[INSTRUCTION:|$)/);
+            finalResponse = arMatch ? arMatch[1]!.trim() : "عذراً، لا يوجد لدينا فرع حالياً في هذا الموقع.";
+          } else {
+            const enMatch = content.match(/EN:\s*([\s\S]*?)(?=\n\nAR:|$)/);
+            finalResponse = enMatch ? enMatch[1]!.trim() : "Currently, we don't have a branch in this location.";
+          }
         }
 
         // Final safety strip of any internal tags

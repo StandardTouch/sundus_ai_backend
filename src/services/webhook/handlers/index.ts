@@ -8,5 +8,6 @@ export { TextMessageHandler } from "./text-message.handler.js";
 export { ImageMessageHandler } from "./image-message.handler.js";
 export { AudioMessageHandler } from "./audio-message.handler.js";
 export { QuickReplyMessageHandler } from "./quick-reply-message.handler.js";
+export { LocationMessageHandler } from "./location-message.handler.js";
 export { DefaultMessageHandler } from "./default-message.handler.js";
 

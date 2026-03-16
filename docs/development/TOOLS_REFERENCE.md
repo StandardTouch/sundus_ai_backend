@@ -143,7 +143,41 @@ This document lists all tools/functions that the AI agent can call. Each tool is
 
 ---
 
-### 4. Feedback Tools (Optional - for tracking)
+### 4. Location Tools
+
+#### `search_locations`
+**Purpose:** Search AlHomaidhi branch locations (and support nearest sorting)
+
+**When to use:**
+- User asks for a branch/location/address/directions
+- User asks for nearest/closest branch
+
+**Parameters:**
+
+```typescript
+// Either search by text
+{ query: string }
+
+// OR search by nearest using coordinates (from WhatsApp location pin)
+{ user_lat: number, user_lng: number }
+```
+
+**Returns:**
+- Structured JSON containing:
+  - Branch titles and addresses (EN/AR)
+  - City/state/country
+  - Contact phone + manager phone/name
+  - Timings (`timings[]`)
+  - Computed “today/open now” fields in Saudi time (`Asia/Riyadh`)
+  - Distance (when coordinates are provided)
+
+**Important:**
+- Never make up addresses or phone numbers.
+- For “nearest branch” requests without a city, ask the user to share a WhatsApp location pin.
+
+---
+
+### 5. Feedback Tools (Optional - for tracking)
 
 #### `record_feedback`
 **Purpose:** Record user feedback on bot responses
@@ -346,8 +380,9 @@ User Receives Message
 | **Products** | `search_products`, `get_product_details`, `list_brands` | Product search and browsing |
 | **Orders** | `track_order`, `get_order_details` | Order tracking and management |
 | **FAQs** | `search_faqs` | Answer common questions |
+| **Locations** | `search_locations` | Branch lookup, nearest sorting, timings |
 
-**Total: 6 Tools**
+**Total: 7 Tools**
 
 ---
 
