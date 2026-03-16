@@ -6,6 +6,7 @@
 import { locationRepository } from "../../repositories/location.repository.js";
 import type { Location, CreateLocationDto, UpdateLocationDto } from "../../models/location.model.js";
 import { logger } from "../../utils/logger.js";
+import { computeTodayHours, haversineDistanceKm, parseLocationCoords, getSaudiNow } from "../utils/location-geo.util.js";
 
 export class LocationService {
   /**
@@ -83,6 +84,39 @@ export class LocationService {
       logger.error("Location service deleteLocation error", { error, id });
       throw error;
     }
+  }
+
+  /**
+   * Get ALL locations sorted by nearest distance to the user
+   * (Saudi time used for hours computation)
+   */
+  async getLocationsNearest(
+    userLat: number,
+    userLng: number,
+    filters: { isActive?: boolean; search?: string } = {}
+  ): Promise<{
+    status: boolean;
+    count: number;
+    data: Array<Location & { distance_km: number; today: ReturnType<typeof computeTodayHours> }>;
+  }> {
+    const now = getSaudiNow();
+    const { locations, total } = await locationRepository.findAllUnpaginated(filters);
+
+    const withDistance = locations
+      .map((loc) => {
+        const coords = parseLocationCoords(loc);
+        const distance_km =
+          coords ? haversineDistanceKm(userLat, userLng, coords.lat, coords.lng) : Number.POSITIVE_INFINITY;
+        const today = computeTodayHours(loc.timings, now);
+        return { ...loc, distance_km, today };
+      })
+      .sort((a, b) => a.distance_km - b.distance_km);
+
+    return {
+      status: true,
+      count: total,
+      data: withDistance,
+    };
   }
 }
 

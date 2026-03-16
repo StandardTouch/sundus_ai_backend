@@ -317,6 +317,20 @@ All messages within `data.message` contain these common fields:
 - `name`: Location name (often empty)
 - `url`: Location URL (often empty)
 
+**How the backend uses it (Nearest Branch Flow):**
+
+- When a user shares a WhatsApp location pin, the backend extracts:
+  - `message_content.latitude`
+  - `message_content.longitude`
+- The backend then finds **all active branches** and sorts them **nearest-first** using Haversine distance.
+- The backend computes:
+  - “today’s hours” and “open now” using **Saudi time** (`Asia/Riyadh`)
+  - `isClosed` is treated as **authoritative**
+- The backend replies with:
+  - Branch address + Google Maps link
+  - **Both** contact numbers (branch contact + manager)
+  - Timings (today/open now)
+
 **Example**:
 
 ```json

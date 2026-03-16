@@ -191,6 +191,14 @@ docs/
 
 **Important:** Understand that sending messages is backend orchestration, not an AI tool!
 
+### 13.5. [Locations](./features/LOCATIONS.md)
+**Nearest branch search, timings, and contact numbers**
+
+- Location tool (`search_locations`) behavior
+- WhatsApp LOCATION pin handling (nearest-first sorting)
+- Timings (“open now” in Saudi time)
+- Phones (branch + manager)
+
 ### 14. [Additional Features](./features/ADDITIONAL_FEATURES.md)
 **Extended feature suggestions and recommendations**
 

@@ -12,6 +12,32 @@ export class LocationRepository {
     return getDatabase().collection<Location>("locations");
   }
 
+  private buildQuery(filters: { isActive?: boolean; search?: string } = {}): any {
+    const query: any = {};
+
+    if (filters.isActive !== undefined) {
+      query.isActive = filters.isActive;
+    }
+
+    if (filters.search && filters.search.trim()) {
+      const searchRegex = { $regex: filters.search.trim(), $options: "i" };
+      query.$or = [
+        { location_id: searchRegex },
+        { location_title: searchRegex },
+        { location_title_ara: searchRegex },
+        { location_address: searchRegex },
+        { location_address_ara: searchRegex },
+        { city: searchRegex },
+        { state: searchRegex },
+        { country: searchRegex },
+        { store_manager_name: searchRegex },
+        { store_manager_phone: searchRegex },
+      ];
+    }
+
+    return query;
+  }
+
   /**
    * Find Location by ID
    */
@@ -60,27 +86,7 @@ export class LocationRepository {
     } = {}
   ): Promise<{ locations: Location[]; total: number }> {
     try {
-      const query: any = {};
-
-      if (filters.isActive !== undefined) {
-        query.isActive = filters.isActive;
-      }
-
-      if (filters.search && filters.search.trim()) {
-        const searchRegex = { $regex: filters.search.trim(), $options: "i" };
-        query.$or = [
-          { location_id: searchRegex },
-          { location_title: searchRegex },
-          { location_title_ara: searchRegex },
-          { location_address: searchRegex },
-          { location_address_ara: searchRegex },
-          { city: searchRegex },
-          { state: searchRegex },
-          { country: searchRegex },
-          { store_manager_name: searchRegex },
-          { store_manager_phone: searchRegex }
-        ];
-      }
+      const query = this.buildQuery(filters);
 
       const [locations, total] = await Promise.all([
         this.getCollection()
@@ -103,6 +109,28 @@ export class LocationRepository {
       logger.error("Location repository findAll error", { error, skip, limit, filters });
       throw error;
     }
+  }
+
+  /**
+   * Find ALL locations matching filters (unpaginated)
+   * Use carefully for nearest computations.
+   */
+  async findAllUnpaginated(
+    filters: { isActive?: boolean; search?: string } = {}
+  ): Promise<{ locations: Location[]; total: number }> {
+    const query = this.buildQuery(filters);
+    const [locations, total] = await Promise.all([
+      this.getCollection().find(query).sort({ created_at: -1 }).toArray(),
+      this.getCollection().countDocuments(query),
+    ]);
+
+    return {
+      locations: locations.map((loc) => ({
+        ...loc,
+        _id: fromObjectId(loc._id as any),
+      })) as Location[],
+      total,
+    };
   }
 
   /**
