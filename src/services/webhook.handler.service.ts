@@ -16,6 +16,7 @@ import {
   LocationMessageHandler,
   DefaultMessageHandler
 } from "./webhook/handlers/index.js";
+import type { ProcessingResult } from "../utils/timing.util.js";
 
 /**
  * Webhook payload structure from AI Sensy
@@ -79,7 +80,7 @@ export class WebhookHandlerService {
   /**
    * Process incoming webhook
    */
-  async processWebhook(payload: WebhookPayload): Promise<void> {
+  async processWebhook(payload: WebhookPayload): Promise<ProcessingResult> {
     const tracker = new TimingTracker();
     
     try {
@@ -89,7 +90,7 @@ export class WebhookHandlerService {
       
       if (!message) {
         logger.warn("Webhook received without message data", { payload });
-        return;
+        return tracker.getResult();
       }
 
       const messageId = message.id || payload.id;
@@ -97,7 +98,7 @@ export class WebhookHandlerService {
       // Check for duplicate processing
       if (this.processedMessageIds.has(messageId)) {
         logger.warn("Duplicate webhook detected, skipping", { messageId });
-        return;
+        return tracker.getResult();
       }
       
       // Mark as processed
@@ -109,7 +110,7 @@ export class WebhookHandlerService {
 
       if (!phoneNumber) {
         logger.warn("Webhook received without phone number", { payload });
-        return;
+        return tracker.getResult();
       }
 
       tracker.addEvent("Message validated");
@@ -117,6 +118,21 @@ export class WebhookHandlerService {
         phoneNumber,
         messageType,
         messageId: message.id
+      });
+
+      // Send instant acknowledgement
+      // Don't wait for this to finish to avoid delaying AI processing
+      const incomingText = message.message_content?.text || "";
+      const userLanguage = detectLanguage(incomingText);
+      const processingMsg = userLanguage === 'ar' 
+        ? "جاري معالجة طلبك..." 
+        : "Your request is being processed...";
+      
+      this.aisensyService.sendTextMessage(phoneNumber, processingMsg).catch(err => {
+        logger.error("Failed to send instant acknowledgment", { 
+          error: err.message, 
+          phoneNumber 
+        });
       });
 
       // Route to appropriate handler
@@ -286,6 +302,8 @@ export class WebhookHandlerService {
         totalTime: `${result.totalTime}ms`,
         events: result.events.length
       });
+
+      return result;
     } catch (error) {
       tracker.addEvent("Error occurred");
       logger.error("Error processing webhook", { error, payload });
