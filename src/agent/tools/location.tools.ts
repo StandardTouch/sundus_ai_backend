@@ -28,7 +28,7 @@ export const locationTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
             description: "User longitude (from a shared location pin).",
           },
         },
-        anyOf: [{ required: ["query"] }, { required: ["user_lat", "user_lng"] }],
+        required: [],
       },
     },
   },
