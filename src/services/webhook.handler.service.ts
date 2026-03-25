@@ -123,17 +123,29 @@ export class WebhookHandlerService {
       // Send instant acknowledgement
       // Don't wait for this to finish to avoid delaying AI processing
       const incomingText = message.message_content?.text || "";
-      const userLanguage = detectLanguage(incomingText);
-      const processingMsg = userLanguage === 'ar' 
-        ? "جاري معالجة طلبك..." 
-        : "Your request is being processed...";
       
-      this.aisensyService.sendTextMessage(phoneNumber, processingMsg).catch(err => {
-        logger.error("Failed to send instant acknowledgment", { 
-          error: err.message, 
-          phoneNumber 
+      // SKIP acknowledgement for simple greetings (it feels weird for "hi" or "hello")
+      const { isGreeting } = await import("../utils/greeting-detector.util.js");
+      const isSimpleGreeting = isGreeting(incomingText);
+      
+      if (!isSimpleGreeting) {
+        const userLanguage = detectLanguage(incomingText);
+        const processingMsg = userLanguage === 'ar' 
+          ? "جاري معالجة طلبك..." 
+          : "Your request is being processed...";
+        
+        this.aisensyService.sendTextMessage(phoneNumber, processingMsg).catch(err => {
+          logger.error("Failed to send instant acknowledgment", { 
+            error: err.message, 
+            phoneNumber 
+          });
         });
-      });
+      } else {
+        logger.info("Skipping instant acknowledgment for simple greeting", { 
+          phoneNumber, 
+          text: incomingText 
+        });
+      }
 
       // Route to appropriate handler
       let result;

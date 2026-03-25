@@ -52,11 +52,20 @@ export class FAQService {
       }
 
       // Step 2: Search Pinecone (semantic search)
-      const pineconeResults = await pineconeService.searchFAQs(searchQuery, topK * 2); // Get more results for fallback
+      let pineconeResults: FAQSearchResult[] = [];
+      try {
+        pineconeResults = await pineconeService.searchFAQs(searchQuery, topK * 2);
+      } catch (pineconeError: any) {
+        logger.error("Pinecone search failed, proceeding to keyword fallback", {
+          error: pineconeError.message,
+          query
+        });
+        // We'll proceed to the keyword fallback below since pineconeResults.length will be 0
+      }
 
-      // If Pinecone returned no results (all filtered by threshold), try keyword fallback immediately
+      // If Pinecone returned no results (all filtered by threshold) or failed, try keyword fallback immediately
       if (pineconeResults.length === 0) {
-        logger.info("No FAQs found in Pinecone (all filtered by threshold), trying keyword fallback", { query });
+        logger.info("No FAQs found in Pinecone or search failed, trying keyword fallback", { query });
         
         const { isShortQuery, findFAQsByKeywords, extractKeywords } = await import("../utils/faq-keyword-matcher.util.js");
         const keywords = extractKeywords(query);
