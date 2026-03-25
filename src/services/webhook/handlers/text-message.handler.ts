@@ -26,7 +26,7 @@ import type OpenAI from "openai";
  * System prompt for the AI assistant
  */
 /**
- * Build dynamic system prompt based on enabled tools
+ * Build dynamic system prompt based on enabled tools.
  */
 function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionTool[]): string {
   const enabledToolNames = enabledTools.map(t => 
