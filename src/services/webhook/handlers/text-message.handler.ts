@@ -284,7 +284,10 @@ export class TextMessageHandler extends BaseMessageHandler {
       logger.info("Nearest branch requested – allowing AI to ask for location pin", { phoneNumber });
     }
 
+    // Use gpt-4o-mini for the first "decision" call — it's 3-5x faster and sufficient
+    // for deciding which tool to call. The more powerful model is used for final formatting.
     const firstResultPromise = openaiService.chatCompletion(messages, {
+      model: "gpt-4o-mini",
       temperature: 0.7,
       max_tokens: 500, // Reduced for faster responses
       tools: enabledTools,
@@ -561,6 +564,8 @@ export class TextMessageHandler extends BaseMessageHandler {
 
       // Add timeout wrapper for final OpenAI call
       // Increased timeout to 30s for production (final response generation can be slower)
+      // Use gpt-4-turbo for the final formatting call — needs higher quality to craft
+      // a well-structured, friendly response from the raw tool data.
       const finalResultPromise = openaiService.chatCompletion(finalMessages, {
         temperature: 0.7,
         max_tokens: 1000 // Increased from 500 to prevent response truncation
