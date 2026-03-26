@@ -55,8 +55,9 @@ export async function executeLocationTool(toolCall: any): Promise<LocationToolRe
       });
       locations = nearest.data || [];
     } else if (query) {
-      // Limit to 10 results to avoid bloating OpenAPI context and causing timeouts
-      const all = await (locationService as any).getLocations(1, 10, { isActive: true, search: query });
+      // Get all matches (up to 1000) so we can compute the real total count. 
+      // We will slice this list later before sending it to OpenAI to avoid timeouts.
+      const all = await (locationService as any).getLocations(1, 1000, { isActive: true, search: query });
       locations = all.data || [];
     } else {
       return {
@@ -113,9 +114,10 @@ export async function executeLocationTool(toolCall: any): Promise<LocationToolRe
       };
     });
     
-    // Final safety limit to 10 results to ensure OpenAI isn't overwhelmed
-    const limitedEnriched = enriched.slice(0, 10);
-    const hasMore = enriched.length > 10;
+    // Limit to 10-12 results to avoid bloating OpenAPI context and causing timeouts
+    // However, we want to know the TOTAL count for accuracy.
+    const limitedEnriched = enriched.slice(0, 5);
+    const hasMore = enriched.length > 5;
     
     const payload = {
       tool_status: "SUCCESS",
@@ -124,13 +126,13 @@ export async function executeLocationTool(toolCall: any): Promise<LocationToolRe
       ...(hasCoords ? { user_location: { lat: user_lat, lng: user_lng } } : {}),
       timezone: "Asia/Riyadh",
       now_iso: now.toISOString(),
-      count: limitedEnriched.length,
-      total_found: enriched.length,
-      has_more: hasMore,
+      count_in_this_list: limitedEnriched.length,
+      total_found_in_database: enriched.length, // This is now correct since we fetch all (up to 1000)
+      has_more_branches_not_listed: hasMore,
       locations: limitedEnriched,
       instruction:
-        "Use ONLY this JSON. When user asks timings/open now, use `today`. Always include both `store_contact_phone` and `store_manager_phone` when user asks for contact." + 
-        (hasMore ? ` (Showing top 10 of ${enriched.length} results. Tell the user there are more if relevant.)` : ""),
+        `Use ONLY this JSON. There are ${enriched.length} branches in total. ` + 
+        (hasMore ? `I have provided only the top 5 local details. Tell the user there are ${enriched.length} branches in total, and list the ones below. Mention they can find all branches on our website if they need the full list.` : "List all branches provided below."),
     };
 
     return {

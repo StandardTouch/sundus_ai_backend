@@ -563,7 +563,7 @@ export class TextMessageHandler extends BaseMessageHandler {
       // Increased timeout to 30s for production (final response generation can be slower)
       const finalResultPromise = openaiService.chatCompletion(finalMessages, {
         temperature: 0.7,
-        max_tokens: 500 // Reduced for faster responses
+        max_tokens: 1000 // Increased from 500 to prevent response truncation
       });
       
       let finalCallTimeoutId: NodeJS.Timeout | null = null;
@@ -660,29 +660,35 @@ export class TextMessageHandler extends BaseMessageHandler {
                 
                 // If it's a location SUCCESS result, format it nicely
                 if (parsed.tool_status === "SUCCESS" && parsed.locations && parsed.locations.length > 0) {
-                  const count = parsed.count || parsed.locations.length;
+                  const totalCount = parsed.total_found_in_database || parsed.count || parsed.locations.length;
                   const userLanguage = detectLanguage(userMessage);
                   
                   if (userLanguage === 'ar') {
-                    finalFallbackMessage = `لقد وجدت ${count} من فروعنا. إليك تفاصيل بعض الفروع:\n\n`;
+                    finalFallbackMessage = `لدينا ${totalCount} فرعاً في المملكة العربية السعودية. إليك تفاصيل بعض الفروع:\n\n`;
                     parsed.locations.forEach((loc: any, idx: number) => {
-                      if (idx < 3) { // Limit to 3 for fallback
+                      if (idx < 5) { // Limit to 5 for fallback
                         finalFallbackMessage += `${idx + 1}. *${loc.title_ar || loc.title_en}*\n`;
                         finalFallbackMessage += `   العنوان: ${loc.address_ar || loc.address_en}\n`;
                         if (loc.store_contact_phone) finalFallbackMessage += `   التواصل: ${loc.store_contact_phone}\n`;
                         finalFallbackMessage += `   الموقع: ${loc.google_maps_url}\n\n`;
                       }
                     });
+                    if (totalCount > 5) {
+                      finalFallbackMessage += "يمكنك العثور على جميع فروعنا وتفاصيلها على موقعنا الإلكتروني.";
+                    }
                   } else {
-                    finalFallbackMessage = `I found ${count} of our branches. Here are the details for some of them:\n\n`;
+                    finalFallbackMessage = `We have a total of ${totalCount} store locations across Saudi Arabia. Here are the details for some of them:\n\n`;
                     parsed.locations.forEach((loc: any, idx: number) => {
-                      if (idx < 3) { // Limit to 3 for fallback
+                      if (idx < 5) { // Limit to 5 for fallback
                         finalFallbackMessage += `${idx + 1}. *${loc.title_en || loc.title_ar}*\n`;
                         finalFallbackMessage += `   Address: ${loc.address_en || loc.address_ar}\n`;
                         if (loc.store_contact_phone) finalFallbackMessage += `   Contact: ${loc.store_contact_phone}\n`;
                         finalFallbackMessage += `   Location: ${loc.google_maps_url}\n\n`;
                       }
                     });
+                    if (totalCount > 5) {
+                      finalFallbackMessage += "You can find the full list of our branches on our website.";
+                    }
                   }
                   
                   logger.info("Formatted location JSON into readable fallback message");
