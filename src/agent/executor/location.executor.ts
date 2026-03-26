@@ -55,8 +55,8 @@ export async function executeLocationTool(toolCall: any): Promise<LocationToolRe
       });
       locations = nearest.data || [];
     } else if (query) {
-      // Get all matches (not limited to 5) so we can send all branches.
-      const all = await (locationService as any).getLocations(1, 1000, { isActive: true, search: query });
+      // Limit to 10 results to avoid bloating OpenAPI context and causing timeouts
+      const all = await (locationService as any).getLocations(1, 10, { isActive: true, search: query });
       locations = all.data || [];
     } else {
       return {
@@ -112,7 +112,11 @@ export async function executeLocationTool(toolCall: any): Promise<LocationToolRe
         isActive: loc.isActive,
       };
     });
-
+    
+    // Final safety limit to 10 results to ensure OpenAI isn't overwhelmed
+    const limitedEnriched = enriched.slice(0, 10);
+    const hasMore = enriched.length > 10;
+    
     const payload = {
       tool_status: "SUCCESS",
       mode,
@@ -120,16 +124,19 @@ export async function executeLocationTool(toolCall: any): Promise<LocationToolRe
       ...(hasCoords ? { user_location: { lat: user_lat, lng: user_lng } } : {}),
       timezone: "Asia/Riyadh",
       now_iso: now.toISOString(),
-      count: enriched.length,
-      locations: enriched,
+      count: limitedEnriched.length,
+      total_found: enriched.length,
+      has_more: hasMore,
+      locations: limitedEnriched,
       instruction:
-        "Use ONLY this JSON. When user asks timings/open now, use `today`. Always include both `store_contact_phone` and `store_manager_phone` when user asks for contact.",
+        "Use ONLY this JSON. When user asks timings/open now, use `today`. Always include both `store_contact_phone` and `store_manager_phone` when user asks for contact." + 
+        (hasMore ? ` (Showing top 10 of ${enriched.length} results. Tell the user there are more if relevant.)` : ""),
     };
 
     return {
       success: true,
       result: JSON.stringify(payload),
-      locations: enriched,
+      locations: limitedEnriched,
     };
   } catch (error: any) {
     logger.error("Location tool execution error", { error, toolName });

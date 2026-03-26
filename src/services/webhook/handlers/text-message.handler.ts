@@ -651,9 +651,61 @@ export class TextMessageHandler extends BaseMessageHandler {
           // If we have any tool result with content, use it
           const anyToolResult = toolResults.find(tr => tr.content);
           if (anyToolResult && anyToolResult.content) {
-            logger.info("Using tool result content as fallback response");
+            // Check if the content is JSON (likely from location tool)
+            let finalFallbackMessage = anyToolResult.content;
+            
+            try {
+              if (anyToolResult.content.trim().startsWith('{')) {
+                const parsed = JSON.parse(anyToolResult.content);
+                
+                // If it's a location SUCCESS result, format it nicely
+                if (parsed.tool_status === "SUCCESS" && parsed.locations && parsed.locations.length > 0) {
+                  const count = parsed.count || parsed.locations.length;
+                  const userLanguage = detectLanguage(userMessage);
+                  
+                  if (userLanguage === 'ar') {
+                    finalFallbackMessage = `لقد وجدت ${count} من فروعنا. إليك تفاصيل بعض الفروع:\n\n`;
+                    parsed.locations.forEach((loc: any, idx: number) => {
+                      if (idx < 3) { // Limit to 3 for fallback
+                        finalFallbackMessage += `${idx + 1}. *${loc.title_ar || loc.title_en}*\n`;
+                        finalFallbackMessage += `   العنوان: ${loc.address_ar || loc.address_en}\n`;
+                        if (loc.store_contact_phone) finalFallbackMessage += `   التواصل: ${loc.store_contact_phone}\n`;
+                        finalFallbackMessage += `   الموقع: ${loc.google_maps_url}\n\n`;
+                      }
+                    });
+                  } else {
+                    finalFallbackMessage = `I found ${count} of our branches. Here are the details for some of them:\n\n`;
+                    parsed.locations.forEach((loc: any, idx: number) => {
+                      if (idx < 3) { // Limit to 3 for fallback
+                        finalFallbackMessage += `${idx + 1}. *${loc.title_en || loc.title_ar}*\n`;
+                        finalFallbackMessage += `   Address: ${loc.address_en || loc.address_ar}\n`;
+                        if (loc.store_contact_phone) finalFallbackMessage += `   Contact: ${loc.store_contact_phone}\n`;
+                        finalFallbackMessage += `   Location: ${loc.google_maps_url}\n\n`;
+                      }
+                    });
+                  }
+                  
+                  logger.info("Formatted location JSON into readable fallback message");
+                } else if (parsed.tool_status === "NO_RESULTS") {
+                  // Handled by the bypass logic above, but here as a secondary fallback
+                  const userLanguage = detectLanguage(userMessage);
+                  finalFallbackMessage = userLanguage === 'ar' 
+                    ? (parsed.messages?.ar || "عذراً، لا يوجد لدينا فرع حالياً في هذا الموقع.")
+                    : (parsed.messages?.en || "Currently, we don't have a branch in this location.");
+                }
+              }
+            } catch (e) {
+              // Not JSON or failed to parse, use original content
+              logger.debug("Fallback content is not JSON or failed to parse", { error: (e as Error).message });
+            }
+
+            logger.info("Using tool result content as fallback response", { 
+              toolName: anyToolResult.name,
+              isFormatted: finalFallbackMessage !== anyToolResult.content 
+            });
+            
             return {
-              message: anyToolResult.content
+              message: finalFallbackMessage
             };
           }
         }
