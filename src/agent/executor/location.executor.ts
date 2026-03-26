@@ -131,8 +131,15 @@ export async function executeLocationTool(toolCall: any): Promise<LocationToolRe
       has_more_branches_not_listed: hasMore,
       locations: limitedEnriched,
       instruction:
-        `Use ONLY this JSON. There are ${enriched.length} branches in total. ` + 
-        (hasMore ? `I have provided only the top 5 local details. Tell the user there are ${enriched.length} branches in total, and list the ones below. Mention they can find all branches on our website if they need the full list.` : "List all branches provided below."),
+        query
+          ? `Use ONLY this JSON. There are ${enriched.length} branches matching "${query}". ` +
+            (hasMore
+              ? `I have provided only the top 5 details. Tell the user there are ${enriched.length} branches in ${query}, and list the ones below. Do NOT say "across Saudi Arabia". Also share this link: https://alhomaidhigroup.com/store-map/`
+              : `List all ${enriched.length} branches below. Do NOT say "across Saudi Arabia". Also share this link: https://alhomaidhigroup.com/store-map/`)
+          : `Use ONLY this JSON. There are ${enriched.length} AlHomaidhi branches across Saudi Arabia. ` +
+            (hasMore
+              ? `I have provided the top 5 details. Tell the user there are ${enriched.length} branches in total, list the ones below, and ALWAYS include this link: https://alhomaidhigroup.com/store-map/`
+              : `List all branches below and share this link: https://alhomaidhigroup.com/store-map/`),
     };
 
     return {
