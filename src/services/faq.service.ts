@@ -98,6 +98,7 @@ export class FAQService {
             }
             
             logger.info("Keyword fallback successful, returning FAQs", {
+              source: "database",
               query,
               foundCount: keywordResults.faqs.length,
               adjustedScore
@@ -210,6 +211,7 @@ export class FAQService {
           // Lower threshold for keyword matches (0.2) since they're less precise than semantic
           if (keywordResults.faqs.length > 0 && keywordResults.matchScore >= 0.2) {
             logger.info("Keyword fallback found relevant FAQs", {
+              source: "database",
               query,
               keywordScore: keywordResults.matchScore,
               foundCount: keywordResults.faqs.length
@@ -260,6 +262,7 @@ export class FAQService {
       }
 
       logger.info("FAQ search completed", {
+        source: "pinecone",
         query,
         totalResults: activeFAQs.length,
         topScore: topFAQ?._score || 0

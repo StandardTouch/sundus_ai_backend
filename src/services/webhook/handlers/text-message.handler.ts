@@ -252,10 +252,10 @@ export class TextMessageHandler extends BaseMessageHandler {
     });
     
     const locationKeywords = [
-      // English
-      "location", "address", "branch", "store", "directions", "where", "nearest", "find",
+      // English - only specific location-intent words
+      "location", "address", "branch", "directions", "nearest branch", "near me", "how to get", "find branch",
       // Arabic
-      "موقع", "عنوان", "فرع", "متجر", "اتجاهات", "أين", "أقرب", "فروع"
+      "موقع", "عنوان", "فرع", "اتجاهات", "أين", "أقرب", "فروع"
     ];
 
     const nearestKeywords = [
@@ -274,18 +274,39 @@ export class TextMessageHandler extends BaseMessageHandler {
       userMessage.toLowerCase().includes(kw.toLowerCase())
     ) && !userMessage.toLowerCase().includes(" in ") && !userMessage.includes(" في ");
 
-    const toolChoice: any = (isLocationQuery && !shouldAskForPin)
-      ? { type: "function", function: { name: "search_locations" } }
-      : (enabledTools.length > 0 ? "auto" : "none");
+    // Detect if the user is asking about company policies, apps, or general info
+    // Force the AI to search instead of guessing from training data
+    const hasFAQTool = enabledTools.some(t => {
+      const tool = t as any;
+      return tool.type === "function" && tool.function.name === "search_faqs";
+    });
 
+    const faqKeywords = [
+      // App related
+      "app", "mobile", "ios", "android", "play store", "apple store", "application", "download",
+      "تطبيق", "برنامج", "تنزيل", "أندرويد", "أيفون", "أبل ستور", "غوغل بلاي",
+      // Policy related
+      "return", "refund", "exchange", "warranty", "guarantee", "shipping", "delivery", "payment",
+      "استبدال", "استرجاع", "ضمان", "توصيل", "شحن", "دفع", "كاش", "فيزا",
+    ];
+
+    const isFAQQuery = hasFAQTool && faqKeywords.some(kw =>
+      userMessage.toLowerCase().includes(kw.toLowerCase())
+    );
+
+    let toolChoice: any = enabledTools.length > 0 ? "auto" : "none";
     if (isLocationQuery && !shouldAskForPin) {
+      toolChoice = { type: "function", function: { name: "search_locations" } };
       logger.info("Location query detected – forcing search_locations tool call", { phoneNumber });
+    } else if (isFAQQuery) {
+      toolChoice = { type: "function", function: { name: "search_faqs" } };
+      logger.info("FAQ query detected – forcing search_faqs tool call", { phoneNumber });
     } else if (shouldAskForPin) {
       logger.info("Nearest branch requested – allowing AI to ask for location pin", { phoneNumber });
     }
 
     const firstResultPromise = openaiService.chatCompletion(messages, {
-      temperature: 0.7,
+      temperature: 0.0, // Force strict adherence to tool rules (no guessing/hallucination)
       max_tokens: 500, // Reduced for faster responses
       tools: enabledTools,
       tool_choice: toolChoice
