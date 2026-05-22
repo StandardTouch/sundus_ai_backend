@@ -121,6 +121,14 @@ async function executeTrackOrder(args: {
       errorMessage: errorMessage.substring(0, 100)
     });
     
+    if (error.isNotRegistered) {
+      return {
+        tool_call_id: args.tool_call_id || "",
+        name: "track_order",
+        content: "I'm sorry, but your phone number is not registered in our system. Please make sure you are using the same phone number you used when placing your order, or contact our support team for assistance.",
+      };
+    }
+
     if (isServiceUnavailable) {
       return {
         tool_call_id: args.tool_call_id || "",
@@ -205,6 +213,14 @@ async function executeGetOrderDetails(args: {
       errorMessage: errorMessage.substring(0, 100)
     });
     
+    if (error.isNotRegistered) {
+      return {
+        tool_call_id: args.tool_call_id || "",
+        name: "get_order_details",
+        content: "I'm sorry, but your phone number is not registered in our system. Please make sure you are using the same phone number you used when placing your order, or contact our support team for assistance.",
+      };
+    }
+
     if (isServiceUnavailable) {
       return {
         tool_call_id: args.tool_call_id || "",

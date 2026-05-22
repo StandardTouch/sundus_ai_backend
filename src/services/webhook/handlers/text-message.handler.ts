@@ -251,53 +251,36 @@ export class TextMessageHandler extends BaseMessageHandler {
       return tool.type === "function" && tool.function.name === "search_locations";
     });
     
-    const locationKeywords = [
-      // English - only specific location-intent words
-      "location", "address", "branch", "directions", "nearest branch", "near me", "how to get", "find branch",
-      // Arabic
-      "موقع", "عنوان", "فرع", "اتجاهات", "أين", "أقرب", "فروع"
-    ];
+    const locationRegex = /\b(location|address|branch|directions|nearest branch|near me|how to get|find branch)\b|(?:\s|^)(موقع|عنوان|فرع|اتجاهات|أين|أقرب|فروع)(?:\s|$)/i;
+    const nearestRegex = /\b(nearest|closest|near me)\b|(?:\s|^)(أقرب|قريب)(?:\s|$)/i;
+    const faqRegex = /\b(app|mobile|ios|android|play store|apple store|application|download|return|refund|exchange|warranty|guarantee|shipping|delivery|payment)\b|(?:\s|^)(تطبيق|برنامج|تنزيل|أندرويد|أيفون|أبل ستور|غوغل بلاي|استبدال|استرجاع|ضمان|توصيل|شحن|دفع|كاش|فيزا)(?:\s|$)/i;
+    const orderRegex = /\b(track|order|status|where is|tracking)\b|(?:\s|^)(شحن|طلب|تتبع|حالة|فين طلبي|شحنتي)(?:\s|$)/i;
+    const orderIdRegex = /#?\d{4,10}/;
 
-    const nearestKeywords = [
-      "nearest",
-      "closest",
-      "near me",
-      "أقرب",
-      "قريب",
-    ];
-    
-    const isLocationQuery = hasLocationTool && locationKeywords.some(kw =>
-      userMessage.toLowerCase().includes(kw.toLowerCase())
-    );
-
-    const shouldAskForPin = isLocationQuery && nearestKeywords.some(kw =>
-      userMessage.toLowerCase().includes(kw.toLowerCase())
-    ) && !userMessage.toLowerCase().includes(" in ") && !userMessage.includes(" في ");
-
-    // Detect if the user is asking about company policies, apps, or general info
-    // Force the AI to search instead of guessing from training data
-    const hasFAQTool = enabledTools.some(t => {
-      const tool = t as any;
-      return tool.type === "function" && tool.function.name === "search_faqs";
+    const hasFAQTool = enabledTools.some(t => (t as any).type === "function" && (t as any).function.name === "search_faqs");
+    const hasOrderTool = enabledTools.some(t => {
+      const name = (t as any).function?.name;
+      return (t as any).type === "function" && (name === "track_order" || name === "get_order_details");
     });
+    
+    const isLocationQuery = hasLocationTool && locationRegex.test(userMessage);
+    const isFAQQuery = hasFAQTool && faqRegex.test(userMessage);
+    const isOrderQuery = hasOrderTool && (orderRegex.test(userMessage) || orderIdRegex.test(userMessage));
+    const isOrderIdQuery = hasOrderTool && orderIdRegex.test(userMessage);
 
-    const faqKeywords = [
-      // App related
-      "app", "mobile", "ios", "android", "play store", "apple store", "application", "download",
-      "تطبيق", "برنامج", "تنزيل", "أندرويد", "أيفون", "أبل ستور", "غوغل بلاي",
-      // Policy related
-      "return", "refund", "exchange", "warranty", "guarantee", "shipping", "delivery", "payment",
-      "استبدال", "استرجاع", "ضمان", "توصيل", "شحن", "دفع", "كاش", "فيزا",
-    ];
-
-    const isFAQQuery = hasFAQTool && faqKeywords.some(kw =>
-      userMessage.toLowerCase().includes(kw.toLowerCase())
-    );
+    const shouldAskForPin = isLocationQuery && nearestRegex.test(userMessage) && 
+      !userMessage.toLowerCase().includes(" in ") && !userMessage.includes(" في ");
 
     let toolChoice: any = enabledTools.length > 0 ? "auto" : "none";
     if (isLocationQuery && !shouldAskForPin) {
       toolChoice = { type: "function", function: { name: "search_locations" } };
       logger.info("Location query detected – forcing search_locations tool call", { phoneNumber });
+    } else if (isOrderIdQuery) {
+      toolChoice = { type: "function", function: { name: "get_order_details" } };
+      logger.info("Specific Order ID detected – forcing get_order_details tool call", { phoneNumber });
+    } else if (isOrderQuery) {
+      toolChoice = { type: "function", function: { name: "track_order" } };
+      logger.info("Order tracking query detected – forcing track_order tool call", { phoneNumber });
     } else if (isFAQQuery) {
       toolChoice = { type: "function", function: { name: "search_faqs" } };
       logger.info("FAQ query detected – forcing search_faqs tool call", { phoneNumber });
@@ -753,7 +736,8 @@ export class TextMessageHandler extends BaseMessageHandler {
       if (orderToolResult && orderToolResult.content && 
           (orderToolResult.content.includes("unavailable") || 
            orderToolResult.content.includes("trouble retrieving") ||
-           orderToolResult.content.includes("trouble"))) {
+           orderToolResult.content.includes("trouble") ||
+           orderToolResult.content.includes("registered"))) {
         // If the tool returned an error message, ALWAYS use it for consistency
         logger.info("Order tool returned error message, using it directly", {
           toolMessage: orderToolResult.content,

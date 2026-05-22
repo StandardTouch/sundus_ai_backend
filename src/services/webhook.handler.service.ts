@@ -124,11 +124,12 @@ export class WebhookHandlerService {
       // Don't wait for this to finish to avoid delaying AI processing
       const incomingText = message.message_content?.text || "";
       
-      // SKIP acknowledgement for simple greetings (it feels weird for "hi" or "hello")
+      // SKIP acknowledgement for simple greetings or button clicks (QUICK_REPLY)
       const { isGreeting } = await import("../utils/greeting-detector.util.js");
       const isSimpleGreeting = isGreeting(incomingText);
+      const isQuickReply = messageType === "QUICK_REPLY";
       
-      if (!isSimpleGreeting) {
+      if (!isSimpleGreeting && !isQuickReply) {
         const userLanguage = detectLanguage(incomingText);
         const processingMsg = userLanguage === 'ar' 
           ? "جاري معالجة طلبك..." 
@@ -141,9 +142,10 @@ export class WebhookHandlerService {
           });
         });
       } else {
-        logger.info("Skipping instant acknowledgment for simple greeting", { 
+        logger.info("Skipping instant acknowledgment", { 
           phoneNumber, 
-          text: incomingText 
+          messageType,
+          isSimpleGreeting
         });
       }
 

@@ -28,15 +28,18 @@ export class OrderService {
         per_page: "null", // Get all orders
       });
 
+      console.log("Alhomaidhi order list response", response);
+
+      if (response.status === "APP001" || response.status === "APP002") {
+        logger.info("Phone number not registered in AlHomaidhi system", { phoneNumber, status: response.status });
+        const error = new Error("NUMBER_NOT_REGISTERED");
+        (error as any).isNotRegistered = true;
+        throw error;
+      }
+
       // Handle "no orders" response (APP003) - this is a valid response, not an error
       if (response.status === "APP003") {
         logger.info("No orders found for phone number", { phoneNumber });
-        return [];
-      }
-
-      // Handle "user not found" response (APP002) - this is a valid response, not an error
-      if (response.status === "APP002") {
-        logger.info("User not found for phone number", { phoneNumber });
         return [];
       }
 
