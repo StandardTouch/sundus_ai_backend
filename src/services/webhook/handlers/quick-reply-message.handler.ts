@@ -226,7 +226,8 @@ export class QuickReplyMessageHandler extends BaseMessageHandler {
 
     // If not feedback, process normally with OpenAI (or handle other quick replies)
     tracker.addEvent("Processing as regular quick reply");
-    const responseText = "Thank you for your response!";
+    const isAr = callbackPayload ? detectLanguage(callbackPayload) === "ar" : false;
+    const responseText = isAr ? "شكراً لك على إجابتك!" : "Thank you for your response!";
     
     const result = await this.sendMessage(phoneNumber, responseText, tracker);
     

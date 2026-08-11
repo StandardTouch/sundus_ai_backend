@@ -13,15 +13,16 @@ import type { ToolExecutionResult } from "./index.js";
  */
 export async function executeOrderTool(
   toolName: string,
-  args: any
+  args: any,
+  userLanguage?: "ar" | "en"
 ): Promise<ToolExecutionResult> {
   try {
     switch (toolName) {
       case "track_order":
-        return await executeTrackOrder(args);
+        return await executeTrackOrder(args, userLanguage);
       
       case "get_order_details":
-        return await executeGetOrderDetails(args);
+        return await executeGetOrderDetails(args, userLanguage);
       
       default:
         logger.error("Unknown order tool", { toolName });
@@ -47,17 +48,20 @@ export async function executeOrderTool(
 async function executeTrackOrder(args: {
   phone_number: string;
   tool_call_id?: string;
-}): Promise<ToolExecutionResult> {
+}, userLanguage: "ar" | "en" = "en"): Promise<ToolExecutionResult> {
   const { phone_number } = args;
 
   try {
     const orders = await orderService.listOrders(phone_number);
 
     if (orders.length === 0) {
+      const noOrdersMsg = userLanguage === "ar"
+        ? "ليس لديك أي طلبات حتى الآن. إذا قمت بتقديم طلب مؤخراً، فقد يستغرق أمره بضع لحظات ليظهر في النظام."
+        : "You don't have any orders yet. If you've placed an order recently, it may take a few moments to appear in the system.";
       return {
         tool_call_id: args.tool_call_id || "",
         name: "track_order",
-        content: "You don't have any orders yet. If you've placed an order recently, it may take a few moments to appear in the system.",
+        content: noOrdersMsg,
         metadata: {
           orders: [],
           orderCount: 0,
@@ -71,12 +75,14 @@ async function executeTrackOrder(args: {
     const latestOrder = orders[0];
     
     // Format the latest order for AI
-    const formattedOrder = orderService.formatOrderForAI(latestOrder);
+    const formattedOrder = orderService.formatOrderForAI(latestOrder, userLanguage);
     
     // If there are multiple orders, mention it but focus on the latest
     let content = formattedOrder;
     if (orders.length > 1) {
-      content = `You have ${orders.length} order(s). Here are the details of your latest order:\n\n${formattedOrder}\n\nIf you'd like to see details of another order, please provide the order number.`;
+      content = userLanguage === "ar"
+        ? `لديك ${orders.length} طلبات. إليك تفاصيل أحدث طلباتك:\n\n${formattedOrder}\n\nإذا كنت ترغب في رؤية تفاصيل طلب آخر، يرجى تزويدنا برقم الطلب.`
+        : `You have ${orders.length} order(s). Here are the details of your latest order:\n\n${formattedOrder}\n\nIf you'd like to see details of another order, please provide the order number.`;
     }
 
     return {
@@ -122,25 +128,34 @@ async function executeTrackOrder(args: {
     });
     
     if (error.isNotRegistered) {
+      const msg = userLanguage === "ar"
+        ? "نأسف، رقم هاتفك غير مسجل في نظامنا. يرجى التأكد من استخدام نفس رقم الهاتف الذي استخدمته عند تقديم طلبك، أو التواصل مع فريق الدعم للمساعدة."
+        : "I'm sorry, but your phone number is not registered in our system. Please make sure you are using the same phone number you used when placing your order, or contact our support team for assistance.";
       return {
         tool_call_id: args.tool_call_id || "",
         name: "track_order",
-        content: "I'm sorry, but your phone number is not registered in our system. Please make sure you are using the same phone number you used when placing your order, or contact our support team for assistance.",
+        content: msg,
       };
     }
 
     if (isServiceUnavailable) {
+      const msg = userLanguage === "ar"
+        ? "نعتذر، خدمة تتبع الطلبات غير متوفرة حالياً. يرجى المحاولة مرة أخرى بعد قليل، أو التواصل مع فريق الدعم للمساعدة."
+        : "I apologize, but the order tracking service is currently unavailable. Please try again in a few moments, or contact our support team for assistance.";
       return {
         tool_call_id: args.tool_call_id || "",
         name: "track_order",
-        content: "I apologize, but the order tracking service is currently unavailable. Please try again in a few moments, or contact our support team for assistance.",
+        content: msg,
       };
     }
     
+    const msg = userLanguage === "ar"
+      ? "نواجه مشكلة في استرجاع طلباتك حالياً. يرجى المحاولة مرة أخرى بعد قليل."
+      : "I'm having trouble retrieving your orders right now. Please try again in a moment.";
     return {
       tool_call_id: args.tool_call_id || "",
       name: "track_order",
-      content: "I'm having trouble retrieving your orders right now. Please try again in a moment.",
+      content: msg,
     };
   }
 }
@@ -152,17 +167,20 @@ async function executeGetOrderDetails(args: {
   order_id: string;
   phone_number: string;
   tool_call_id?: string;
-}): Promise<ToolExecutionResult> {
+}, userLanguage: "ar" | "en" = "en"): Promise<ToolExecutionResult> {
   const { order_id, phone_number } = args;
 
   try {
     const order = await orderService.getOrderById(order_id, phone_number);
 
     if (!order) {
+      const msg = userLanguage === "ar"
+        ? `لم نتمكن من العثور على الطلب رقم ${order_id} في حسابك. يرجى التحقق من رقم الطلب والمحاولة مرة أخرى، أو طلب رؤية جميع طلباتك.`
+        : `I couldn't find order ${order_id} in your account. Please check the order number and try again, or ask to see all your orders.`;
       return {
         tool_call_id: args.tool_call_id || "",
         name: "get_order_details",
-        content: `I couldn't find order ${order_id} in your account. Please check the order number and try again, or ask to see all your orders.`,
+        content: msg,
         metadata: {
           order: null,
           isSingleOrder: false,
@@ -172,7 +190,7 @@ async function executeGetOrderDetails(args: {
     }
 
     // Format order for AI
-    const formattedOrder = orderService.formatOrderForAI(order);
+    const formattedOrder = orderService.formatOrderForAI(order, userLanguage);
 
     return {
       tool_call_id: args.tool_call_id || "",
@@ -214,25 +232,34 @@ async function executeGetOrderDetails(args: {
     });
     
     if (error.isNotRegistered) {
+      const msg = userLanguage === "ar"
+        ? "نأسف، رقم هاتفك غير مسجل في نظامنا. يرجى التأكد من استخدام نفس رقم الهاتف الذي استخدمته عند تقديم طلبك، أو التواصل مع فريق الدعم للمساعدة."
+        : "I'm sorry, but your phone number is not registered in our system. Please make sure you are using the same phone number you used when placing your order, or contact our support team for assistance.";
       return {
         tool_call_id: args.tool_call_id || "",
         name: "get_order_details",
-        content: "I'm sorry, but your phone number is not registered in our system. Please make sure you are using the same phone number you used when placing your order, or contact our support team for assistance.",
+        content: msg,
       };
     }
 
     if (isServiceUnavailable) {
+      const msg = userLanguage === "ar"
+        ? "نعتذر، خدمة تتبع الطلبات غير متوفرة حالياً. يرجى المحاولة مرة أخرى بعد قليل، أو التواصل مع فريق الدعم للمساعدة."
+        : "I apologize, but the order tracking service is currently unavailable. Please try again in a few moments, or contact our support team for assistance.";
       return {
         tool_call_id: args.tool_call_id || "",
         name: "get_order_details",
-        content: "I apologize, but the order tracking service is currently unavailable. Please try again in a few moments, or contact our support team for assistance.",
+        content: msg,
       };
     }
     
+    const msg = userLanguage === "ar"
+      ? `نواجه مشكلة في استرجاع تفاصيل الطلب رقم ${order_id} حالياً. يرجى المحاولة مرة أخرى بعد قليل.`
+      : `I'm having trouble retrieving order ${order_id} right now. Please try again in a moment.`;
     return {
       tool_call_id: args.tool_call_id || "",
       name: "get_order_details",
-      content: `I'm having trouble retrieving order ${order_id} right now. Please try again in a moment.`,
+      content: msg,
     };
   }
 }

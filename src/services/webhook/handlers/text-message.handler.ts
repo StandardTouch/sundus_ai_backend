@@ -20,6 +20,7 @@ import type { ChatMessage, ChatCompletionResult } from "../../openai.service.js"
 import type { Product } from "../../../api/alhomaidhi/product.api.js";
 import type { Order } from "../../../api/alhomaidhi/order.api.js";
 import { orderService } from "../../order.service.js";
+import { supportSettingsService } from "../../support-settings.service.js";
 import type OpenAI from "openai";
 
 /**
@@ -28,7 +29,7 @@ import type OpenAI from "openai";
 /**
  * Build dynamic system prompt based on enabled tools.
  */
-function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionTool[]): string {
+function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionTool[], supportPhoneNumber: string = "+966 9200 09339"): string {
   const enabledToolNames = enabledTools.map(t => 
     t.type === "function" ? t.function.name : ""
   ).filter(Boolean);
@@ -100,7 +101,7 @@ function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionT
   const limitations: string[] = [];
   
   if (!hasOrderTools) {
-    limitations.push(`- Order tracking is currently unavailable. If users ask about their orders, politely explain that order tracking is temporarily unavailable and suggest they contact support at +966 9200 09339 for assistance.`);
+    limitations.push(`- Order tracking is currently unavailable. If users ask about their orders, politely explain that order tracking is temporarily unavailable and suggest they contact support at ${supportPhoneNumber} for assistance.`);
   }
   
   if (!hasProductTools) {
@@ -149,7 +150,7 @@ LIMITATIONS AND BOUNDARIES:
 ${limitations.length > 0 ? limitations.join('\n') + '\n' : ''}- If you are uncertain about an answer or lack specific information, acknowledge this honestly and suggest alternative ways to help.
 - Do not speculate or provide information that may be inaccurate.
 - If a request is outside your capabilities, politely explain the limitation and offer to connect the customer with appropriate resources.
-- If a requested feature is unavailable, suggest contacting support at +966 9200 09339 for assistance.
+- If a requested feature is unavailable, suggest contacting support at ${supportPhoneNumber} for assistance.
 - IMPORTANT: Never mention technical details like "FAQ database", "database", "system", "tool", or how you retrieve information. Speak naturally as if you have the information directly. If you don't have information, simply say "I don't have specific details about..." without mentioning where you searched.
 
 RESPONSE FORMAT:
@@ -203,8 +204,11 @@ export class TextMessageHandler extends BaseMessageHandler {
     const enabledTools = await getEnabledTools();
     tracker.addEvent(`Using ${enabledTools.length} enabled tools`);
 
-    // Build dynamic system prompt based on enabled tools
-    let systemPrompt = buildSystemPrompt(enabledTools);
+    // Get support phone number dynamically from settings database
+    const supportPhoneNumber = await supportSettingsService.getSupportPhoneNumber();
+
+    // Build dynamic system prompt based on enabled tools and support phone number
+    let systemPrompt = buildSystemPrompt(enabledTools, supportPhoneNumber);
     
     // Add explicit language instruction if user language is detected
     if (userLanguage) {
@@ -640,12 +644,15 @@ export class TextMessageHandler extends BaseMessageHandler {
             
             // Even if tool result content is not ideal, we have product data - return brief message
             logger.info("Returning brief message with product data despite OpenAI failure");
+            const fallbackMsg = userLanguage === 'ar'
+              ? `عثرنا على ${productData.products.length} من المنتجات لك. إليك التفاصيل:`
+              : `Found ${productData.products.length} product${productData.products.length > 1 ? "s" : ""} for you. Here are the details:`;
             const result: { 
               message: string; 
               productData: { products: Product[]; isSingleProduct: boolean };
               orderData?: { order: Order; isSingleOrder: boolean };
             } = {
-              message: `Found ${productData.products.length} product${productData.products.length > 1 ? "s" : ""} for you. Here are the details:`,
+              message: fallbackMsg,
               productData: productData
             };
             if (orderData) {
@@ -891,10 +898,14 @@ export class TextMessageHandler extends BaseMessageHandler {
           productCount: productData.products.length
         });
         // Create a brief message so we can proceed to image sending
-        aiResponse = `I found ${productData.products.length} product${productData.products.length > 1 ? "s" : ""} for you. Here are the details:`;
+        aiResponse = userMessageLanguage === 'ar'
+          ? `وجدت لك ${productData.products.length} من المنتجات. إليك التفاصيل:`
+          : `I found ${productData.products.length} product${productData.products.length > 1 ? "s" : ""} for you. Here are the details:`;
       } else {
-        // No product data and no message - send fallback
-        const fallbackResponse = "I apologize, but I'm having trouble processing your message right now. Please try again in a moment.";
+        // No product data and no message - send fallback in user's language
+        const fallbackResponse = userMessageLanguage === 'ar'
+          ? "أعتذر، أواجه مشكلة في معالجة رسالتك الآن. يرجى المحاولة مرة أخرى بعد قليل."
+          : "I apologize, but I'm having trouble processing your message right now. Please try again in a moment.";
         await this.sendMessage(phoneNumber, fallbackResponse, tracker);
         return tracker.getResult();
       }
@@ -910,7 +921,9 @@ export class TextMessageHandler extends BaseMessageHandler {
         hasOrderData: !!orderData,
         shouldSendLocationTemplate
       });
-      const fallbackResponse = "I apologize, but I'm having trouble processing your message right now. Please try again in a moment.";
+      const fallbackResponse = userMessageLanguage === 'ar'
+        ? "أعتذر، أواجه مشكلة في معالجة رسالتك الآن. يرجى المحاولة مرة أخرى بعد قليل."
+        : "I apologize, but I'm having trouble processing your message right now. Please try again in a moment.";
       await this.sendMessage(phoneNumber, fallbackResponse, tracker);
       return tracker.getResult();
     }

@@ -186,12 +186,38 @@ export class OrderService {
   /**
    * Format order for AI response
    */
-  formatOrderForAI(order: Order): string {
+  formatOrderForAI(order: Order, language: "ar" | "en" = "en"): string {
     const orderId = order.order_details.order_id;
-    const status = this.formatOrderStatus(order.order_details.order_status);
+    const status = language === "ar"
+      ? this.formatOrderStatusArabic(order.order_details.order_status)
+      : this.formatOrderStatus(order.order_details.order_status);
     const total = order.order_details.total;
     const items = order.items || [];
     const itemCount = items.length;
+
+    if (language === "ar") {
+      let formatted = `*الطلب رقم ${orderId}*\n\n`;
+      formatted += `الحالة: ${status}\n`;
+      formatted += `الإجمالي: ${total} ريال\n`;
+      formatted += `عدد العناصر: ${itemCount}\n`;
+      
+      if (items.length > 0) {
+        formatted += `\nالعناصر:\n`;
+        items.forEach((item, index) => {
+          formatted += `${index + 1}. ${item.item_name} (الكمية: ${item.quantity})\n`;
+        });
+      }
+
+      if (this.isAramexOrder(order)) {
+        const trackingNumber = this.getPrimaryTrackingNumber(order);
+        if (trackingNumber) {
+          formatted += `\nرقم التتبع: ${trackingNumber}\n`;
+          formatted += `شركة الشحن: أرامكس\n`;
+        }
+      }
+
+      return formatted;
+    }
 
     let formatted = `*Order ${orderId}*\n\n`;
     formatted += `Status: ${status}\n`;
@@ -220,9 +246,19 @@ export class OrderService {
   /**
    * Format multiple orders for AI response
    */
-  formatOrdersForAI(orders: Order[]): string {
+  formatOrdersForAI(orders: Order[], language: "ar" | "en" = "en"): string {
     if (orders.length === 0) {
-      return "You don't have any orders yet.";
+      return language === "ar" ? "ليس لديك أي طلبات حتى الآن." : "You don't have any orders yet.";
+    }
+
+    if (language === "ar") {
+      let formatted = `لديك ${orders.length} طلبات:\n\n`;
+      orders.forEach((order, index) => {
+        const orderId = order.order_details.order_id;
+        const status = this.formatOrderStatusArabic(order.order_details.order_status);
+        formatted += `${index + 1}. الطلب رقم ${orderId} - ${status}\n`;
+      });
+      return formatted;
     }
 
     let formatted = `You have ${orders.length} order${orders.length > 1 ? "s" : ""}:\n\n`;

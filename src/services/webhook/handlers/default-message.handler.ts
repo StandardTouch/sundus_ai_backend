@@ -8,6 +8,8 @@ import { TimingTracker } from "../../../utils/timing.util.js";
 import type { ProcessingResult } from "../../../utils/timing.util.js";
 import { logger } from "../../../utils/logger.js";
 
+import { detectLanguage } from "../../../utils/language.util.js";
+
 /**
  * Default Message Handler
  */
@@ -21,11 +23,15 @@ export class DefaultMessageHandler extends BaseMessageHandler {
     tracker: TimingTracker
   ): Promise<ProcessingResult> {
     const messageType = message.message_type || "unknown";
+    const text = message.message_content?.text || message.message_content?.caption || "";
+    const isAr = text ? detectLanguage(text) === "ar" : false;
     
     tracker.addEvent("Default handler started");
     logger.info("Unhandled message type", { messageType, phoneNumber });
     
-    const responseText = `Thank you for your ${messageType} message. We're processing it!`;
+    const responseText = isAr
+      ? `شكراً لك على رسالتك من نوع (${messageType}). جاري معالجتها!`
+      : `Thank you for your ${messageType} message. We're processing it!`;
     
     const result = await this.sendMessage(phoneNumber, responseText, tracker);
     

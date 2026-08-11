@@ -25,10 +25,11 @@ export interface ProductToolResult {
 export async function executeProductTool(
   toolName: string,
   args: any,
-  userMessage?: string // User's original message for context (to detect "show me only 1" etc.)
+  userMessage?: string, // User's original message for context (to detect "show me only 1" etc.)
+  userLanguage: "ar" | "en" = "en"
 ): Promise<ProductToolResult> {
   try {
-    logger.info("Executing product tool", { toolName, args });
+    logger.info("Executing product tool", { toolName, args, userLanguage });
 
     switch (toolName) {
       case "search_products": {
@@ -99,9 +100,13 @@ export async function executeProductTool(
             matchedBrandName
           });
           
+          const msg = userLanguage === "ar"
+            ? `للأسف، لا تتوفر لدينا ساعات من ماركة ${matchedBrandName} في الوقت الحالي. هل ترغب في الاطلاع على ساعات من ماركات أخرى؟`
+            : `Unfortunately, we don't have ${matchedBrandName} watches available at the moment. Would you like to see watches from other brands?`;
+
           return {
             success: true,
-            result: `Unfortunately, we don't have ${matchedBrandName} watches available at the moment. Would you like to see watches from other brands?`,
+            result: msg,
             should_send_feedback: true // Cannot help - task complete (brand not available)
           };
         }
@@ -120,7 +125,8 @@ export async function executeProductTool(
           'show me one', 'give me one', 'send me one', 'just one',
           'only 1', 'only one', 'show me only 1', 'show me only one',
           'just 1', 'just show 1', 'just show one', 'show 1', 'show one',
-          'i want only 1', 'i want only one', 'give me only 1', 'give me only one'
+          'i want only 1', 'i want only one', 'give me only 1', 'give me only one',
+          'ساعة واحدة', 'ساعه واحده', 'واحدة فقط', 'واحده فقط', 'عرض 1', 'فقط 1', 'أرخص', 'ارخص'
         ];
         const isSingleProductRequest = singleProductKeywords.some(keyword => 
           queryLower.includes(keyword) || userMessageLower.includes(keyword)
@@ -177,10 +183,13 @@ export async function executeProductTool(
           ).slice(0, 5);
 
           if (uniqueSimilar.length > 0) {
+            const msg = userLanguage === "ar"
+              ? `لم نتمكن من العثور على منتجات تطابق "${query}". ولكن إليك بعض المنتجات المشابهة التي قد تهمك:`
+              : `I couldn't find products matching "${query}". However, here are some similar products you might be interested in:`;
             // Return similar products with product data so templates can be sent
             return {
               success: true,
-              result: `I couldn't find products matching "${query}". However, here are some similar products you might be interested in:`,
+              result: msg,
               products: uniqueSimilar,
               isSingleProduct: false, // Multiple similar products
               should_send_feedback: true // Similar products found - task completed
@@ -191,16 +200,22 @@ export async function executeProductTool(
           const brands = await productService.listBrands();
           if (brands.length > 0) {
             const brandList = brands.slice(0, 5).map((b, i) => `${i + 1}. ${b.name}`).join("\n");
-          return {
-            success: true,
-            result: `I couldn't find products matching "${query}". We don't have that specific product in our catalog.\n\nYou might want to browse our available brands:\n${brandList}\n\nOr try searching with different keywords.`,
-            should_send_feedback: true // Cannot help - task complete (no products found)
-          };
+            const msg = userLanguage === "ar"
+              ? `لم نتمكن من العثور على منتجات تطابق "${query}". لا يتوفر هذا المنتج في كتالوجنا.\n\nقد ترغب في تصفح الماركات المتاحة لدينا:\n${brandList}\n\nأو حاول البحث باستخدام كلمات رئيسية أخرى.`
+              : `I couldn't find products matching "${query}". We don't have that specific product in our catalog.\n\nYou might want to browse our available brands:\n${brandList}\n\nOr try searching with different keywords.`;
+            return {
+              success: true,
+              result: msg,
+              should_send_feedback: true // Cannot help - task complete (no products found)
+            };
           }
 
+          const msg = userLanguage === "ar"
+            ? `لم نتمكن من العثور على منتجات تطابق "${query}". لا يتوفر هذا المنتج في كتالوجنا. يرجى المحاولة باستخدام كلمات بحث أخرى أو سؤالنا عن الماركات المتوفرة.`
+            : `I couldn't find products matching "${query}". We don't have that specific product in our catalog. Please try searching with different keywords or ask me about our available brands.`;
           return {
             success: true,
-            result: `I couldn't find products matching "${query}". We don't have that specific product in our catalog. Please try searching with different keywords or ask me about our available brands.`,
+            result: msg,
             should_send_feedback: true // Cannot help - task complete (no products found)
           };
         }
@@ -209,12 +224,16 @@ export async function executeProductTool(
         let briefSummary: string;
         if (isSingleProduct && finalProducts.length === 1) {
           // Single product - mention it's the most affordable option
-          const productName = finalProducts[0]?.product_details?.name || "product";
-          briefSummary = `I found a ${productName} for you! I'll send you the details of the most affordable option shortly.`;
+          const productName = finalProducts[0]?.product_details?.name || (userLanguage === "ar" ? "منتج" : "product");
+          briefSummary = userLanguage === "ar"
+            ? `عثرت على ${productName} من أجلك! سأرسل لك تفاصيل الخيار الأنسب سعراً قريباً.`
+            : `I found a ${productName} for you! I'll send you the details of the most affordable option shortly.`;
         } else {
           // Multiple products
           const productCount = finalProducts.length;
-          briefSummary = `Found ${productCount} product${productCount > 1 ? "s" : ""} matching your search. Product images with full details (name, SKU, price, and purchase links) will be sent separately.`;
+          briefSummary = userLanguage === "ar"
+            ? `تم العثور على ${productCount} من المنتجات المطابقة لبحثك. سيتم إرسال صور المنتجات مع التفاصيل الكاملة (الاسم، السعر، ورابط الشراء) بشكل منفصل.`
+            : `Found ${productCount} product${productCount > 1 ? "s" : ""} matching your search. Product images with full details (name, SKU, price, and purchase links) will be sent separately.`;
         }
 
         return {
@@ -239,28 +258,31 @@ export async function executeProductTool(
         const product = await productService.getProductDetails(product_id);
         
         if (!product) {
-          // Try to find similar products by searching for related terms
-          // First, try to get related products if we had the original product
-          // Since we don't have it, suggest browsing or searching
           const brands = await productService.listBrands();
           if (brands.length > 0) {
             const brandList = brands.slice(0, 5).map((b, i) => `${i + 1}. ${b.name}`).join("\n");
+            const msg = userLanguage === "ar"
+              ? `لم نتمكن من العثور على منتج بالرقم ${product_id}. هذا المنتج غير متوفر في كتالوجنا.\n\nقد ترغب في:\n- تصفح الماركات المتاحة لدينا:\n${brandList}\n- البحث عن المنتجات باستخدام الكلمات الرئيسية`
+              : `I couldn't find a product with ID ${product_id}. We don't have that specific product in our catalog.\n\nYou might want to:\n- Browse our available brands:\n${brandList}\n- Search for products using keywords\n- Ask me about specific product categories`;
             return {
               success: true,
-              result: `I couldn't find a product with ID ${product_id}. We don't have that specific product in our catalog.\n\nYou might want to:\n- Browse our available brands:\n${brandList}\n- Search for products using keywords\n- Ask me about specific product categories`,
+              result: msg,
               should_send_feedback: true // Cannot help - task complete (product not found)
             };
           }
 
+          const msg = userLanguage === "ar"
+            ? `لم نتمكن من العثور على منتج بالرقم ${product_id}. هذا المنتج غير متوفر في كتالوجنا. يرجى محاولة البحث باستخدام الكلمات الرئيسية.`
+            : `I couldn't find a product with ID ${product_id}. We don't have that specific product in our catalog. Please try searching for products using keywords or ask me about our available brands.`;
           return {
             success: true,
-            result: `I couldn't find a product with ID ${product_id}. We don't have that specific product in our catalog. Please try searching for products using keywords or ask me about our available brands.`,
+            result: msg,
             should_send_feedback: true // Cannot help - task complete (product not found)
           };
         }
 
         // If product found, also check for related products
-        let result = productService.formatProductForAI(product);
+        let result = productService.formatProductForAI(product, userLanguage);
         
         // Add related products if available
         if (product.related_product_ids && product.related_product_ids.length > 0) {
@@ -272,11 +294,12 @@ export async function executeProductTool(
           
           const validRelated = relatedProducts.filter(p => p !== null) as any[];
           if (validRelated.length > 0) {
-            result += "\n\nSimilar products you might like:\n";
+            result += userLanguage === "ar" ? "\n\nمنتجات مشابهة قد تعجبك:\n" : "\n\nSimilar products you might like:\n";
             validRelated.forEach((p, i) => {
               const details = p.product_details;
               const relatedUrl = `https://alhomaidhigroup.com/product/${details.slug}`;
-              result += `${i + 1}. *${details.name}*\n   Price: ${details.price} SAR\n   🛒 ${relatedUrl}\n`;
+              const priceLabel = userLanguage === "ar" ? "السعر:" : "Price:";
+              result += `${i + 1}. *${details.name}*\n   ${priceLabel} ${details.price} SAR\n   🛒 ${relatedUrl}\n`;
             });
           }
         }
@@ -294,9 +317,10 @@ export async function executeProductTool(
         const brands = await productService.listBrands();
         
         if (brands.length === 0) {
+          const msg = userLanguage === "ar" ? "لا تتوفر ماركات حالياً." : "No brands available at the moment.";
           return {
             success: true,
-            result: "No brands available at the moment."
+            result: msg
           };
         }
 
@@ -304,9 +328,13 @@ export async function executeProductTool(
           .map((brand, index) => `${index + 1}. ${brand.name}`)
           .join("\n");
 
+        const msg = userLanguage === "ar"
+          ? `تتوفر لدينا الماركات التالية (${brands.length}):\n\n${formatted}\n\nيمكنك البحث عن منتجات أي من هذه الماركات عن طريق ذكر اسم الماركة.`
+          : `We have ${brands.length} brand${brands.length > 1 ? "s" : ""} available:\n\n${formatted}\n\nYou can search for products from any of these brands by mentioning the brand name.`;
+
         return {
           success: true,
-          result: `We have ${brands.length} brand${brands.length > 1 ? "s" : ""} available:\n\n${formatted}\n\nYou can search for products from any of these brands by mentioning the brand name.`
+          result: msg
         };
       }
 

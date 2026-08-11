@@ -46,8 +46,14 @@ export class LocationMessageHandler extends BaseMessageHandler {
     const lat = Number(message?.message_content?.latitude);
     const lng = Number(message?.message_content?.longitude);
 
+    const recent = await conversationService.getRecentMessages(phoneNumber, 1).catch(() => []);
+    const lastUserText = recent.find((m: any) => m.role === "user")?.content || "";
+    const lang = (detectLanguage(lastUserText) === "ar" ? "ar" : "en") as "ar" | "en";
+
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      const fallback = "Thanks! I couldn't read the location coordinates. Please try sending your location again.";
+      const fallback = lang === "ar"
+        ? "شكراً! لم نتمكن من قراءة إحداثيات الموقع. يرجى محاولة إرسال موقعك مرة أخرى."
+        : "Thanks! I couldn't read the location coordinates. Please try sending your location again.";
       await this.sendMessage(phoneNumber, fallback, tracker);
       return tracker.getResult();
     }
@@ -61,10 +67,6 @@ export class LocationMessageHandler extends BaseMessageHandler {
     ).catch(() => {
       // Don't fail the handler if storage fails
     });
-
-    const recent = await conversationService.getRecentMessages(phoneNumber, 1).catch(() => []);
-    const lastUserText = recent.find((m: any) => m.role === "user")?.content || "";
-    const lang = (detectLanguage(lastUserText) === "ar" ? "ar" : "en") as "ar" | "en";
 
     tracker.addEvent("Searching nearest locations");
     const result = await locationService.getLocationsNearest(lat, lng, { isActive: true });

@@ -20,12 +20,19 @@ export interface GuardrailResult {
   contentFlagged?: boolean;
 }
 
+import { detectLanguage } from "../utils/language.util.js";
+
 /**
  * Process input through all guardrails
  */
-export async function processGuardrails(input: string): Promise<GuardrailResult> {
+export async function processGuardrails(input: string, userLanguage?: "ar" | "en"): Promise<GuardrailResult> {
+  const lang = userLanguage || (input ? detectLanguage(input) : "en");
+  const blockMsg = lang === "ar"
+    ? "لا يمكنني معالجة هذا الطلب. كيف يمكنني مساعدتك بطريقة أخرى؟"
+    : "I can't process that request. How else can I help you?";
+
   // Step 1: Input Validation
-  const validation = validateInput(input);
+  const validation = validateInput(input, lang);
   if (!validation.isValid) {
     return {
       passed: false,
@@ -49,7 +56,7 @@ export async function processGuardrails(input: string): Promise<GuardrailResult>
     if (injectionCheck.confidence === "high") {
       return {
         passed: false,
-        error: "I can't process that request. How else can I help you?",
+        error: blockMsg,
         injectionDetected: true
       };
     }
@@ -61,7 +68,7 @@ export async function processGuardrails(input: string): Promise<GuardrailResult>
       // If sanitization removed everything, block
       return {
         passed: false,
-        error: "I can't process that request. How else can I help you?",
+        error: blockMsg,
         injectionDetected: true
       };
     }
@@ -75,7 +82,7 @@ export async function processGuardrails(input: string): Promise<GuardrailResult>
     });
     return {
       passed: false,
-      error: "I can't process that request. How else can I help you?",
+      error: blockMsg,
       contentFlagged: true
     };
   }
@@ -93,8 +100,13 @@ export async function processGuardrails(input: string): Promise<GuardrailResult>
  * Quick check - just validation and injection detection (no moderation API call)
  * Use this for faster checks when moderation isn't critical
  */
-export function quickGuardrailCheck(input: string): GuardrailResult {
-  const validation = validateInput(input);
+export function quickGuardrailCheck(input: string, userLanguage?: "ar" | "en"): GuardrailResult {
+  const lang = userLanguage || (input ? detectLanguage(input) : "en");
+  const blockMsg = lang === "ar"
+    ? "لا يمكنني معالجة هذا الطلب. كيف يمكنني مساعدتك بطريقة أخرى؟"
+    : "I can't process that request. How else can I help you?";
+
+  const validation = validateInput(input, lang);
   if (!validation.isValid) {
     return {
       passed: false,
@@ -108,7 +120,7 @@ export function quickGuardrailCheck(input: string): GuardrailResult {
   if (injectionCheck.isInjection && injectionCheck.confidence === "high") {
     return {
       passed: false,
-      error: "I can't process that request. How else can I help you?",
+      error: blockMsg,
       injectionDetected: true
     };
   }

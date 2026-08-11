@@ -3,6 +3,7 @@
  * Handles database connection and initialization
  */
 
+import dns from "dns";
 import { MongoClient, Db, ObjectId } from "mongodb";
 import { logger } from "../utils/logger.js";
 
@@ -20,6 +21,16 @@ export async function connectDatabase(): Promise<void> {
     if (client && db) {
       logger.info("Database already connected");
       return;
+    }
+
+    // Set reliable public DNS servers for SRV lookup if using mongodb+srv://
+    // Windows local DNS/ISP servers often fail or refuse SRV record queries (querySrv ECONNREFUSED)
+    if (MONGODB_URI.startsWith("mongodb+srv://")) {
+      try {
+        dns.setServers(["8.8.8.8", "1.1.1.1"]);
+      } catch (dnsErr) {
+        logger.warn("Failed to set custom DNS servers for MongoDB SRV resolution", { dnsErr });
+      }
     }
 
     logger.info("Connecting to MongoDB...", { uri: MONGODB_URI.replace(/\/\/.*@/, "//***:***@") });

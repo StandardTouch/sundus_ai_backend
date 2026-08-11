@@ -21,17 +21,20 @@ export interface InputValidationResult {
 const MAX_MESSAGE_LENGTH = parseInt(process.env.MAX_MESSAGE_LENGTH || "2000", 10);
 const MIN_MESSAGE_LENGTH = 1;
 
+import { detectLanguage } from "../utils/language.util.js";
+
 /**
  * Validate and sanitize user input
  */
-export function validateInput(input: string): InputValidationResult {
+export function validateInput(input: string, userLanguage?: "ar" | "en"): InputValidationResult {
   const warnings: string[] = [];
+  const lang = userLanguage || (input ? detectLanguage(input) : "en");
 
   // Check if input is empty or only whitespace
   if (!input || input.trim().length === 0) {
     return {
       isValid: false,
-      error: "Message cannot be empty"
+      error: lang === "ar" ? "لا يمكن أن تكون الرسالة فارغة" : "Message cannot be empty"
     };
   }
 
@@ -39,7 +42,7 @@ export function validateInput(input: string): InputValidationResult {
   if (input.trim().length < MIN_MESSAGE_LENGTH) {
     return {
       isValid: false,
-      error: "Message is too short"
+      error: lang === "ar" ? "الرسالة قصيرة جداً" : "Message is too short"
     };
   }
 
@@ -47,7 +50,9 @@ export function validateInput(input: string): InputValidationResult {
   if (input.length > MAX_MESSAGE_LENGTH) {
     return {
       isValid: false,
-      error: `Message exceeds maximum length of ${MAX_MESSAGE_LENGTH} characters`
+      error: lang === "ar"
+        ? `تتجاوز الرسالة الحد الأقصى للطول (${MAX_MESSAGE_LENGTH} حرفاً)`
+        : `Message exceeds maximum length of ${MAX_MESSAGE_LENGTH} characters`
     };
   }
 

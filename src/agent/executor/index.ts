@@ -40,7 +40,7 @@ export interface ToolExecutionResult {
 export async function executeTool(
   toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall,
   phoneNumber?: string,
-  context?: { conversationId?: string; messageId?: string; userMessage?: string }
+  context?: { conversationId?: string; messageId?: string; userMessage?: string; userLanguage?: "ar" | "en" }
 ): Promise<ToolExecutionResult> {
   // Type guard: ensure it's a function tool call
   if (toolCall.type !== "function") {
@@ -74,7 +74,7 @@ export async function executeTool(
   // Route to appropriate executor based on tool name
   if (name.startsWith("search_products") || name.startsWith("get_product_details") || name.startsWith("list_brands")) {
     // Pass user message to product executor for single product detection
-    const productResult = await executeProductTool(name, args, context?.userMessage);
+    const productResult = await executeProductTool(name, args, context?.userMessage, context?.userLanguage);
     
     // Format result for OpenAI
     const content = productResult.success
@@ -155,7 +155,7 @@ export async function executeTool(
     }
     
     // Execute order tool
-    const orderResult = await executeOrderTool(name, { ...args, tool_call_id: id });
+    const orderResult = await executeOrderTool(name, { ...args, tool_call_id: id }, context?.userLanguage);
     
     return {
       tool_call_id: id,
@@ -171,7 +171,7 @@ export async function executeTool(
       ...(context?.messageId ? { messageId: context.messageId } : {}),
       ...(phoneNumber ? { phoneNumber } : {})
     };
-    const faqResult = await executeFAQTool(name, args, faqContext);
+    const faqResult = await executeFAQTool(name, args, faqContext, context?.userLanguage);
     
     // Format result for OpenAI
     // If result is null, return message indicating no FAQ found (AI will generate response)

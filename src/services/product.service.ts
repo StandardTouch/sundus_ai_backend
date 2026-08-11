@@ -124,11 +124,44 @@ export class ProductService {
    * Format product for AI response
    * WhatsApp-friendly formatting (no markdown links)
    */
-  formatProductForAI(product: Product): string {
+  formatProductForAI(product: Product, language: "ar" | "en" = "en"): string {
     const details = product.product_details;
     const brandNames = product.brands.map(b => b.name).join(", ");
     const imageCount = product.images.length;
     const productUrl = `https://alhomaidhigroup.com/product/${details.slug}`;
+
+    if (language === "ar") {
+      let formatted = `*${details.name}*\n\n`;
+      formatted += `رمز المنتج (SKU): ${details.sku}\n`;
+      if (brandNames) {
+        formatted += `الماركة: ${brandNames}\n`;
+      }
+      formatted += `السعر: ${details.price} ريال\n`;
+      
+      if (details.on_sale && details.sale_price) {
+        formatted += `السعر الأصلي: ${details.regular_price} ريال\n`;
+        formatted += `سعر التخفيض: *${details.sale_price} ريال*\n`;
+        if (details.discount_percentage) {
+          formatted += `خصم: ${details.discount_percentage}\n`;
+        }
+      }
+
+      formatted += `حالة التوفر: ${details.stock_status === "instock" ? "✅ متوفر" : "❌ غير متوفر"}\n`;
+      if (details.stock_quantity > 0) {
+        formatted += `الكمية المتاحة: ${details.stock_quantity}\n`;
+      }
+
+      if (details.short_description) {
+        formatted += `\n${details.short_description}\n`;
+      }
+
+      formatted += `\n🛒 الشراء: ${productUrl}`;
+      if (imageCount > 0) {
+        formatted += `\n\n(يتوفر ${imageCount} صور)`;
+      }
+
+      return formatted;
+    }
 
     // WhatsApp-friendly format: use * for bold, plain URLs
     let formatted = `*${details.name}*\n\n`;
@@ -171,9 +204,9 @@ export class ProductService {
    * Format multiple products for AI response
    * WhatsApp-friendly formatting (no markdown links)
    */
-  formatProductsForAI(products: Product[], maxProducts: number = 5): string {
+  formatProductsForAI(products: Product[], maxProducts: number = 5, language: "ar" | "en" = "en"): string {
     if (!products || products.length === 0) {
-      return "No products found matching your search.";
+      return language === "ar" ? "لم يتم العثور على منتجات تطابق بحثك." : "No products found matching your search.";
     }
 
     const displayProducts = products.slice(0, maxProducts);
@@ -181,6 +214,17 @@ export class ProductService {
       const details = product.product_details;
       const brandNames = product.brands.map(b => b.name).join(", ");
       const productUrl = `https://alhomaidhigroup.com/product/${details.slug}`;
+
+      if (language === "ar") {
+        let productText = `${index + 1}. *${details.name}*\n`;
+        productText += `   رمز المنتج (SKU): ${details.sku}\n`;
+        if (brandNames) {
+          productText += `   الماركة: ${brandNames}\n`;
+        }
+        productText += `   السعر: ${details.price} ريال\n`;
+        productText += `   🛒 ${productUrl}`;
+        return productText;
+      }
 
       // WhatsApp-friendly format: plain text with emojis, no markdown
       let productText = `${index + 1}. *${details.name}*\n`;
@@ -194,11 +238,16 @@ export class ProductService {
       return productText;
     });
 
-    let result = `Found ${products.length} product${products.length > 1 ? "s" : ""}:\n\n`;
+    let result = language === "ar"
+      ? `تم العثور على ${products.length} من المنتجات:\n\n`
+      : `Found ${products.length} product${products.length > 1 ? "s" : ""}:\n\n`;
     result += formattedProducts.join("\n\n");
 
     if (products.length > maxProducts) {
-      result += `\n\n... and ${products.length - maxProducts} more product${products.length - maxProducts > 1 ? "s" : ""}.`;
+      const remaining = products.length - maxProducts;
+      result += language === "ar"
+        ? `\n\n... و ${remaining} منتجات أخرى.`
+        : `\n\n... and ${remaining} more product${remaining > 1 ? "s" : ""}.`;
     }
 
     return result;
