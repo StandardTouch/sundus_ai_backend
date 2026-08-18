@@ -20,6 +20,7 @@ import analyticsRoutes from "./analytics/routes/analytics.routes.js";
 import { bgRemovalRoutes } from "./bg-removal/index.js";
 import { locationRoutes } from "./locations/index.js";
 import { watchFieldsRoutes } from "./watch-fields/index.js";
+import { skuManagementRoutes } from "./sku-management/index.js";
 
 dotenv.config();
 
@@ -35,7 +36,8 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Apply logging middleware
 app.use(loggingMiddleware);
@@ -51,6 +53,7 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/bg-removal", bgRemovalRoutes);
 app.use("/api/locations", locationRoutes);
 app.use("/api/watch-fields", watchFieldsRoutes);
+app.use("/api/sku-management", skuManagementRoutes);
 
 // Webhook endpoint (from AI Sensy)
 app.post("/", async (req: Request, res: Response) => {
