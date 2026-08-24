@@ -124,12 +124,14 @@ export class WebhookHandlerService {
       // Don't wait for this to finish to avoid delaying AI processing
       const incomingText = message.message_content?.text || "";
       
-      // SKIP acknowledgement for simple greetings or button clicks (QUICK_REPLY)
+      // SKIP acknowledgement for simple greetings, button clicks (QUICK_REPLY), or test messages
       const { isGreeting } = await import("../utils/greeting-detector.util.js");
       const isSimpleGreeting = isGreeting(incomingText);
       const isQuickReply = messageType === "QUICK_REPLY";
+      const normalizedIncoming = incomingText.trim().toLowerCase();
+      const isTestMessage = normalizedIncoming === "test" || normalizedIncoming === "testing" || normalizedIncoming.startsWith("test ") || normalizedIncoming.startsWith("testing ");
       
-      if (!isSimpleGreeting && !isQuickReply) {
+      if (!isSimpleGreeting && !isQuickReply && !isTestMessage) {
         const userLanguage = detectLanguage(incomingText);
         const processingMsg = userLanguage === 'ar' 
           ? "جاري معالجة طلبك..." 
@@ -145,7 +147,8 @@ export class WebhookHandlerService {
         logger.info("Skipping instant acknowledgment", { 
           phoneNumber, 
           messageType,
-          isSimpleGreeting
+          isSimpleGreeting,
+          isTestMessage
         });
       }
 
@@ -180,8 +183,8 @@ export class WebhookHandlerService {
 
       tracker.addEvent("Processing complete");
       
-      // Send timing breakdown (if enabled)
-      const ENABLE_TIMING_BREAKDOWN = process.env.ENABLE_TIMING_BREAKDOWN === "true";
+      // Send timing breakdown (if enabled or if it's a test message)
+      const ENABLE_TIMING_BREAKDOWN = process.env.ENABLE_TIMING_BREAKDOWN === "true" || isTestMessage;
       if (ENABLE_TIMING_BREAKDOWN) {
         const totalSeconds = (result.totalTime / 1000).toFixed(2);
         const timingMessage = `⏱️ Processing Time: ${totalSeconds}s\n${result.breakdown}`;
