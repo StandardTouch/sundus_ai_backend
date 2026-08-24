@@ -801,7 +801,17 @@ export class TextMessageHandler extends BaseMessageHandler {
     tracker.addEvent("Text content extracted");
     logger.info("Received TEXT message", { phoneNumber, text });
 
-    // Apply guardrails (quick check first - no API calls)
+    // Direct test message check (bypasses AI, credit check, and guardrails for rapid timing tests)
+    const normalizedText = text.trim().toLowerCase();
+    if (normalizedText === "test" || normalizedText === "testing" || normalizedText.startsWith("test ") || normalizedText.startsWith("testing ")) {
+      tracker.addEvent("Test message detected (bypassing AI & credit check)");
+      logger.info("Handling direct test message", { phoneNumber, text });
+
+      const testResponse = "Testing successful! (Bypassed AI & credit check)";
+      await this.sendMessage(phoneNumber, testResponse, tracker);
+
+      return tracker.getResult();
+    }
     tracker.addEvent("Applying guardrails (quick check)");
     const quickCheck = quickGuardrailCheck(text);
     

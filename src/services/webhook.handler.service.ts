@@ -183,7 +183,8 @@ export class WebhookHandlerService {
       // Send timing breakdown (if enabled)
       const ENABLE_TIMING_BREAKDOWN = process.env.ENABLE_TIMING_BREAKDOWN === "true";
       if (ENABLE_TIMING_BREAKDOWN) {
-        const timingMessage = `⏱️ Processing Time: ${result.totalTime}ms\n${result.breakdown}`;
+        const totalSeconds = (result.totalTime / 1000).toFixed(2);
+        const timingMessage = `⏱️ Processing Time: ${totalSeconds}s\n${result.breakdown}`;
         const timingResult = await this.aisensyService.sendTextMessage(phoneNumber, timingMessage);
         
         if (timingResult.success) {

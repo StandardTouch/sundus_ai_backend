@@ -62,14 +62,14 @@ export class TimingTracker {
   }
 
   /**
-   * Format timing breakdown for display
+   * Format timing breakdown for display (in seconds)
    */
   formatBreakdown(): string {
     if (this.events.length === 0) {
       return "No timing data available";
     }
 
-    const totalTime = this.getTotalTime();
+    const totalTime = this.getTotalTime(); // totalTime in ms
     let breakdown = "📊 Breakdown:\n";
     
     for (let i = 0; i < this.events.length; i++) {
@@ -77,23 +77,16 @@ export class TimingTracker {
       if (!event) continue;
       
       const prevEvent = i > 0 ? this.events[i - 1] : null;
-      const timeSincePrev = prevEvent ? event.elapsed - prevEvent.elapsed : event.elapsed;
+      const timeSincePrevMs = prevEvent ? event.elapsed - prevEvent.elapsed : event.elapsed;
       
-      // Format with 2 decimal places if less than 1ms, otherwise round to nearest integer
-      const formattedTimeSincePrev = timeSincePrev < 1 
-        ? timeSincePrev.toFixed(2) 
-        : Math.round(timeSincePrev).toString();
-      const formattedElapsed = event.elapsed < 1 
-        ? event.elapsed.toFixed(2) 
-        : Math.round(event.elapsed).toString();
+      const secondsSincePrev = (timeSincePrevMs / 1000).toFixed(2);
+      const totalElapsedSeconds = (event.elapsed / 1000).toFixed(2);
       
-      breakdown += `  • ${event.event}: +${formattedTimeSincePrev}ms (${formattedElapsed}ms total)\n`;
+      breakdown += `  • ${event.event}: +${secondsSincePrev}s (${totalElapsedSeconds}s total)\n`;
     }
     
-    const formattedTotal = totalTime < 1 
-      ? totalTime.toFixed(2) 
-      : Math.round(totalTime).toString();
-    breakdown += `\n⏱️ Total: ${formattedTotal}ms`;
+    const formattedTotalSeconds = (totalTime / 1000).toFixed(2);
+    breakdown += `\n⏱️ Total: ${formattedTotalSeconds}s`;
     
     return breakdown;
   }
