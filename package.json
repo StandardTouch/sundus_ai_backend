@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon --watch src --ext ts --exec tsx src/app.ts",
+    "send-msg": "tsx scripts/send-direct-message.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "NODE_ENV=production tsx src/app.ts"
   },
@@ -18,9 +19,11 @@
     "axios": "^1.13.1",
     "bcrypt": "^6.0.0",
     "body-parser": "^2.2.0",
+    "bullmq": "^6.3.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
     "mongodb": "^7.0.0",
     "multer": "^2.0.2",

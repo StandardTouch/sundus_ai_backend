@@ -5,6 +5,9 @@ import dotenv from "dotenv";
 import { logger } from "./utils/logger.js";
 import { loggingMiddleware } from "./middleware/logging.middleware.js";
 import { connectDatabase, closeDatabase } from "./config/database.js";
+import { connectRedis, closeRedis } from "./config/redis.config.js";
+import { addWebhookJob } from "./queues/webhook.queue.js";
+import { initWebhookWorker, closeWebhookWorker } from "./queues/webhook.worker.js";
 import { cleanupService } from "./services/cleanup.service.js";
 import { settingsService } from "./settings/services/settings.service.js";
 import { webhookHandlerService } from "./services/webhook.handler.service.js";
@@ -55,7 +58,7 @@ app.use("/api/watch-fields", watchFieldsRoutes);
 // Webhook endpoint (from AI Sensy)
 app.post("/", async (req: Request, res: Response) => {
   try {
-    // Check if webhook processing is enabled
+    // Check if webhook processing is enabled (Uses Redis Cache)
     const webhookActive = await settingsService.getWebhookActiveStatus();
     
     if (!webhookActive) {
@@ -71,16 +74,27 @@ app.post("/", async (req: Request, res: Response) => {
     // Webhook is enabled, process it
     logger.info("Received webhook payload", { body: req.body });
     
-    // Process webhook asynchronously (don't wait for response)
-    webhookHandlerService.processWebhook(req.body).catch((error) => {
-      logger.error("Error in webhook processing", { error });
-    });
-    
-    // Acknowledge receipt immediately (webhook processing happens in background)
-    res.status(200).json({ 
-      status: "ok", 
-      message: "Webhook received and processing" 
-    });
+    // Attempt to queue job via BullMQ in Redis
+    const queued = await addWebhookJob(req.body);
+
+    if (queued) {
+      // Successfully queued in BullMQ
+      res.status(200).json({ 
+        status: "queued", 
+        message: "Webhook queued for background processing" 
+      });
+    } else {
+      // Fallback to direct async processing if Redis is unavailable
+      logger.warn("BullMQ queue unavailable, falling back to direct background processing");
+      webhookHandlerService.processWebhook(req.body).catch((error) => {
+        logger.error("Error in webhook processing", { error });
+      });
+      
+      res.status(200).json({ 
+        status: "ok", 
+        message: "Webhook received and processing (direct fallback)" 
+      });
+    }
   } catch (error) {
     logger.error("Webhook handler error", { error });
     res.status(200).json({ 
@@ -104,6 +118,12 @@ async function startServer() {
   try {
     // Connect to MongoDB
     await connectDatabase();
+
+    // Connect to Redis (for Caching & BullMQ)
+    const redisConnected = await connectRedis();
+    if (redisConnected) {
+      initWebhookWorker();
+    }
 
     // Run initial cleanup of expired OTPs and tokens
     logger.info("Running initial cleanup of expired OTPs and tokens...");
@@ -148,12 +168,16 @@ async function gracefulShutdown(signal: string) {
       cleanupService.stopPeriodicCleanup(cleanupInterval);
     }
 
-    // Wait for in-flight requests (give up to 30 seconds)
-    logger.info("Waiting for in-flight requests to complete...");
-    await new Promise(resolve => setTimeout(resolve, 30000));
+    // Stop BullMQ Worker
+    await closeWebhookWorker();
 
-    // Close database connection
+    // Wait for in-flight requests (give up to 5 seconds)
+    logger.info("Waiting for in-flight requests to complete...");
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
+    // Close database & redis connection
     await closeDatabase();
+    await closeRedis();
 
     logger.info("Graceful shutdown completed");
     process.exit(0);

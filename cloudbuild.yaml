@@ -33,6 +33,8 @@ steps:
         'us-central1',
         '--platform',
         'managed',
+        '--vpc-connector',
+        'redis-connector',
         '--allow-unauthenticated'
       ]
 
