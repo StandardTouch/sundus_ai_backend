@@ -23,7 +23,6 @@ export const redisConfig = {
  */
 export const redisConnectionOptions: RedisOptions = redisConfig.url
   ? {
-      // If URL is provided, ioredis parses host/port/password from it
       host: new URL(redisConfig.url).hostname || redisConfig.host,
       port: parseInt(new URL(redisConfig.url).port || "6379", 10),
       password: new URL(redisConfig.url).password || redisConfig.password,
@@ -39,20 +38,38 @@ export const redisConnectionOptions: RedisOptions = redisConfig.url
     };
 
 /**
- * Shared ioredis client instance for application caching and locks
+ * Lazy ioredis client — only instantiated when REDIS_ENABLED=true
+ * This prevents ETIMEDOUT errors on local dev when no Redis is available
  */
-export const redisClient = new Redis({
-  ...redisConnectionOptions,
-  lazyConnect: true,
-});
+let _redisClient: Redis | null = null;
 
-redisClient.on("connect", () => {
-  logger.info("Connected to Redis successfully");
-});
+export function getRedisClient(): Redis | null {
+  if (!redisConfig.enabled) return null;
+  if (!_redisClient) {
+    _redisClient = new Redis({
+      ...redisConnectionOptions,
+      lazyConnect: true,
+    });
+    _redisClient.on("connect", () => {
+      logger.info("Connected to Redis successfully");
+    });
+    _redisClient.on("error", (err) => {
+      logger.error("Redis Client Error", { error: err.message });
+    });
+  }
+  return _redisClient;
+}
 
-redisClient.on("error", (err) => {
-  logger.error("Redis Client Error", { error: err.message });
-});
+// Convenience alias used throughout the codebase
+export const redisClient = {
+  get status() { return getRedisClient()?.status ?? "close"; },
+  get: (key: string) => getRedisClient()?.get(key) ?? Promise.resolve(null),
+  set: (...args: Parameters<Redis["set"]>) => (getRedisClient() as any)?.set(...args) ?? Promise.resolve(null),
+  del: (...args: Parameters<Redis["del"]>) => (getRedisClient() as any)?.del(...args) ?? Promise.resolve(0),
+  keys: (pattern: string) => getRedisClient()?.keys(pattern) ?? Promise.resolve([]),
+  quit: () => getRedisClient()?.quit() ?? Promise.resolve("OK"),
+  connect: () => getRedisClient()?.connect() ?? Promise.resolve(),
+};
 
 /**
  * Connect to Redis gracefully
@@ -63,7 +80,7 @@ export async function connectRedis(): Promise<boolean> {
     return false;
   }
   try {
-    await redisClient.connect();
+    await getRedisClient()!.connect();
     return true;
   } catch (error: any) {
     logger.warn("Failed to connect to Redis. Caching & BullMQ will fall back to direct mode.", {
@@ -78,8 +95,9 @@ export async function connectRedis(): Promise<boolean> {
  */
 export async function closeRedis(): Promise<void> {
   try {
-    if (redisClient.status === "ready" || redisClient.status === "connecting") {
-      await redisClient.quit();
+    const client = getRedisClient();
+    if (client && (client.status === "ready" || client.status === "connecting")) {
+      await client.quit();
       logger.info("Redis connection closed");
     }
   } catch (error: any) {

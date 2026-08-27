@@ -10,20 +10,33 @@ import { logger } from "../utils/logger.js";
 export const WEBHOOK_QUEUE_NAME = "webhook-processing-queue";
 
 /**
- * BullMQ Queue Instance
+ * Lazy BullMQ Queue instance — only created when Redis is enabled
  */
-export const webhookQueue = new Queue(WEBHOOK_QUEUE_NAME, {
-  connection: redisConnectionOptions,
-  defaultJobOptions: {
-    attempts: 3, // Retry failed jobs up to 3 times
-    backoff: {
-      type: "exponential",
-      delay: 2000, // Wait 2s, 4s, 8s on failure
-    },
-    removeOnComplete: { age: 3600, count: 1000 }, // Clean up completed jobs
-    removeOnFail: { age: 86400, count: 5000 }, // Keep failed jobs 24h for audit
-  },
-});
+let _webhookQueue: Queue | null = null;
+
+export function getWebhookQueue(): Queue | null {
+  if (!redisConfig.enabled) return null;
+  if (!_webhookQueue) {
+    _webhookQueue = new Queue(WEBHOOK_QUEUE_NAME, {
+      connection: redisConnectionOptions,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: {
+          type: "exponential",
+          delay: 2000,
+        },
+        removeOnComplete: { age: 3600, count: 1000 },
+        removeOnFail: { age: 86400, count: 5000 },
+      },
+    });
+  }
+  return _webhookQueue;
+}
+
+// Keep named export for backward compat (used in test script)
+export const webhookQueue = {
+  getJobCounts: async () => getWebhookQueue()?.getJobCounts() ?? {},
+};
 
 /**
  * Add incoming webhook payload to queue
@@ -33,10 +46,17 @@ export async function addWebhookJob(payload: any): Promise<boolean> {
     return false;
   }
   try {
-    // Generate job ID based on message ID if present, otherwise timestamp
-    const messageId = payload?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.id || `job_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const queue = getWebhookQueue();
+    if (!queue) return false;
+
+    // Extract message ID supporting both AI Sensy format and standard Meta format
+    const messageId =
+      payload?.data?.message?.id ||
+      payload?.id ||
+      payload?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.id ||
+      `job_${Date.now()}_${Math.random().toString(36).substring(7)}`;
     
-    await webhookQueue.add("process-webhook", payload, {
+    await queue.add("process-webhook", payload, {
       jobId: messageId,
     });
     

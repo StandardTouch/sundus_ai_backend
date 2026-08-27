@@ -5,8 +5,11 @@
 
 import { supportSettingsRepository } from "../repositories/support-settings.repository.js";
 import { logger } from "../utils/logger.js";
+import { cacheService } from "./cache.service.js";
 
 const OPENAI_CREDITS_AVAILABLE_KEY = "openai_credits_available";
+const CACHE_KEY = "openai:credits_available";
+const CACHE_TTL = 30; // Cache for 30 seconds
 
 export class OpenAICreditService {
   /**
@@ -15,20 +18,27 @@ export class OpenAICreditService {
    */
   async areCreditsAvailable(): Promise<boolean> {
     try {
+      // Check Redis cache first (< 1ms response time)
+      const cached = await cacheService.get<boolean>(CACHE_KEY);
+      if (cached !== null) {
+        return cached;
+      }
+
       const setting = await supportSettingsRepository.findByKey(OPENAI_CREDITS_AVAILABLE_KEY);
       
       if (!setting) {
         // Default to true if not set (assume credits are available)
+        await cacheService.set(CACHE_KEY, true, CACHE_TTL);
         return true;
       }
       
-      // Parse boolean value from string
-      return setting.value.toLowerCase() === "true";
+      const available = setting.value.toLowerCase() === "true";
+      await cacheService.set(CACHE_KEY, available, CACHE_TTL);
+      return available;
     } catch (error: any) {
       logger.error("Error checking OpenAI credits status", {
         error: error.message
       });
-      // Default to true on error (assume credits are available)
       return true;
     }
   }
@@ -44,6 +54,9 @@ export class OpenAICreditService {
         description: "OpenAI API credits availability status. Set to 'false' when credits are exhausted.",
         updated_by: updatedBy
       });
+
+      // Update Redis cache immediately so next message check is instant
+      await cacheService.set(CACHE_KEY, available, CACHE_TTL);
 
       logger.info("OpenAI credits status updated", {
         available,

@@ -27,8 +27,12 @@ export function initWebhookWorker(): Worker | null {
       logger.info(`[Worker] Processing webhook job ${job.id}`);
       const payload = job.data;
 
-      // Deduplication check using message ID if present
-      const messageId = payload?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.id;
+      // Deduplication check using message ID if present (AI Sensy or Meta format)
+      const messageId =
+        payload?.data?.message?.id ||
+        payload?.id ||
+        payload?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.id;
+
       if (messageId) {
         const acquired = await cacheService.acquireLock(messageId, 60);
         if (!acquired) {
