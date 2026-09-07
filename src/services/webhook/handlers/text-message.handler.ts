@@ -14,6 +14,7 @@ import type { ConversationMessage } from "../../../models/conversation-message.m
 import { logger } from "../../../utils/logger.js";
 import { detectLanguage } from "../../../utils/language.util.js";
 import { processGuardrails, quickGuardrailCheck } from "../../../guardrails/index.js";
+import { isGreeting } from "../../../utils/greeting-detector.util.js";
 import { getEnabledTools } from "../../../agent/tools/index.js";
 import { executeTool, type ToolExecutionResult } from "../../../agent/executor/index.js";
 import type { ChatMessage, ChatCompletionResult } from "../../openai.service.js";
@@ -30,18 +31,18 @@ import type OpenAI from "openai";
  * Build dynamic system prompt based on enabled tools.
  */
 function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionTool[], supportPhoneNumber: string = "+966 9200 09339"): string {
-  const enabledToolNames = enabledTools.map(t => 
+  const enabledToolNames = enabledTools.map(t =>
     t.type === "function" ? t.function.name : ""
   ).filter(Boolean);
-  
+
   // Check which tool categories are available
-  const hasProductTools = enabledToolNames.some(name => 
+  const hasProductTools = enabledToolNames.some(name =>
     name === 'search_products' || name === 'get_product_details' || name === 'list_brands'
   );
-  const hasOrderTools = enabledToolNames.some(name => 
+  const hasOrderTools = enabledToolNames.some(name =>
     name === 'track_order' || name === 'get_order_details'
   );
-  const hasFAQTools = enabledToolNames.some(name => 
+  const hasFAQTools = enabledToolNames.some(name =>
     name === 'search_faqs'
   );
   const hasLocationTool = enabledToolNames.some(name =>
@@ -50,7 +51,7 @@ function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionT
 
   // Build capabilities section dynamically
   const capabilities: string[] = [];
-  
+
   if (hasProductTools) {
     capabilities.push(`- Assist with product searches, specifications, and availability inquiries.
     - IMPORTANT PRODUCT INFORMATION:
@@ -60,7 +61,7 @@ function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionT
       * NEVER make up or assume product categories - we only sell watches.
       * When showing multiple products, provide personalized recommendations based on the user's query, preferences, and product features (price, brand, availability, etc.).`);
   }
-  
+
   if (hasOrderTools) {
     capabilities.push(`- Help customers track their orders and provide order status updates.
     - IMPORTANT ORDER TRACKING RULES:
@@ -71,7 +72,7 @@ function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionT
       * The phone number is automatically provided from the message sender - you can search for any order associated with that phone number.
       * Do not ask for additional information - use the tools immediately with the automatically provided phone number.`);
   }
-  
+
   if (hasFAQTools) {
     capabilities.push(`- Answer general questions about AlHomaidhi Group's services and policies.
     - MANDATORY: You MUST use the search_faqs tool when users ask about:
@@ -92,18 +93,18 @@ function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionT
       2. If the user asks for location/branch/address and has provided a city/area (e.g., "Riyadh", "Abu Dhiba"), use the search_locations tool with that query.
     - NEVER make up addresses. Always use the information returned by the search_locations tool.`);
   }
-  
+
   // Always available capabilities
   capabilities.push(`- Provide accurate and up-to-date information based on available data.
     - Answer general questions about AlHomaidhi Group's services and policies.`);
 
   // Build limitations based on disabled tools
   const limitations: string[] = [];
-  
+
   if (!hasOrderTools) {
     limitations.push(`- Order tracking is currently unavailable. If users ask about their orders, politely explain that order tracking is temporarily unavailable and suggest they contact support at ${supportPhoneNumber} for assistance.`);
   }
-  
+
   if (!hasProductTools) {
     limitations.push(`- Product search is currently unavailable. If users ask about products, politely explain that product search is temporarily unavailable and suggest they contact support for assistance.`);
   }
@@ -113,7 +114,7 @@ function buildSystemPrompt(enabledTools: OpenAI.Chat.Completions.ChatCompletionT
   if (hasProductTools) roleParts.push('product inquiries');
   if (hasOrderTools) roleParts.push('order tracking');
   if (hasFAQTools) roleParts.push('general customer assistance');
-  const roleDescription = roleParts.length > 0 
+  const roleDescription = roleParts.length > 0
     ? `specializing in ${roleParts.join(', ')}`
     : 'providing customer support';
 
@@ -192,8 +193,9 @@ export class TextMessageHandler extends BaseMessageHandler {
     phoneNumber: string,
     storedUserMessage?: ConversationMessage | null,
     userLanguage?: 'ar' | 'en' // User's current message language
-  ): Promise<{ 
-    message: string | null; 
+  ): Promise<{
+    message: string | null;
+    alreadySent?: boolean;
     productData?: { products: Product[]; isSingleProduct: boolean };
     orderData?: { order: any; isSingleOrder: boolean };
     shouldSendFeedback?: boolean; // Flag indicating if feedback should be sent
@@ -209,7 +211,7 @@ export class TextMessageHandler extends BaseMessageHandler {
 
     // Build dynamic system prompt based on enabled tools and support phone number
     let systemPrompt = buildSystemPrompt(enabledTools, supportPhoneNumber);
-    
+
     // Add explicit language instruction if user language is detected
     if (userLanguage) {
       const languageInstruction = userLanguage === 'ar'
@@ -217,7 +219,7 @@ export class TextMessageHandler extends BaseMessageHandler {
         : "\n\nCRITICAL LANGUAGE INSTRUCTION: The user's CURRENT message is in English. You MUST respond in English. Ignore any previous Arabic conversation history - respond in English to match the user's current message language.";
       systemPrompt += languageInstruction;
     }
-    
+
     const messages: ChatMessage[] = [
       { role: "system", content: systemPrompt },
       ...conversationHistory,
@@ -226,25 +228,25 @@ export class TextMessageHandler extends BaseMessageHandler {
 
     // First call: AI decides if it needs to call tools
     tracker.addEvent("Initial OpenAI call with tools");
-    
+
     // Add timeout wrapper to prevent hanging
     // Increased timeout to 25s for production (OpenAI can be slow with tool calls)
     // Optional: Check if OpenAI credits are available before making API call
     // This is a lightweight check that doesn't block if the service is unavailable
     const creditsAvailable = await openaiCreditService.areCreditsAvailable().catch(() => true);
-    
+
     if (!creditsAvailable) {
       logger.warn("⚠️ OpenAI credits unavailable - skipping API call", { phoneNumber });
       // Detect user language and send fun energy message
       const userLanguage = detectLanguage(userMessage);
-      const energyMessage = userLanguage === 'ar' 
+      const energyMessage = userLanguage === 'ar'
         ? "عذرًا! طاقتي منخفضة! ⚡ أحتاج إلى دفعة سريعة للعودة لمساعدتك. سأكون جاهزًا لمساعدتك قريبًا!"
         : "Oops! I'm running low on energy! ⚡ I need a quick boost to get back to helping you. I'll be ready to assist you soon!";
-      
+
       await this.sendMessage(phoneNumber, energyMessage, tracker);
       return {
-        ...tracker.getResult(),
-        message: null // No AI message since credits are unavailable
+        message: null,
+        alreadySent: true
       };
     }
 
@@ -254,7 +256,7 @@ export class TextMessageHandler extends BaseMessageHandler {
       const tool = t as any;
       return tool.type === "function" && tool.function.name === "search_locations";
     });
-    
+
     const locationRegex = /\b(location|address|branch|directions|nearest branch|near me|how to get|find branch)\b|(?:\s|^)(موقع|عنوان|فرع|اتجاهات|أين|أقرب|فروع)(?:\s|$)/i;
     const nearestRegex = /\b(nearest|closest|near me)\b|(?:\s|^)(أقرب|قريب)(?:\s|$)/i;
     const faqRegex = /\b(app|mobile|ios|android|play store|apple store|application|download|return|refund|exchange|warranty|guarantee|shipping|delivery|payment)\b|(?:\s|^)(تطبيق|برنامج|تنزيل|أندرويد|أيفون|أبل ستور|غوغل بلاي|استبدال|استرجاع|ضمان|توصيل|شحن|دفع|كاش|فيزا)(?:\s|$)/i;
@@ -266,13 +268,13 @@ export class TextMessageHandler extends BaseMessageHandler {
       const name = (t as any).function?.name;
       return (t as any).type === "function" && (name === "track_order" || name === "get_order_details");
     });
-    
+
     const isLocationQuery = hasLocationTool && locationRegex.test(userMessage);
     const isFAQQuery = hasFAQTool && faqRegex.test(userMessage);
     const isOrderQuery = hasOrderTool && (orderRegex.test(userMessage) || orderIdRegex.test(userMessage));
     const isOrderIdQuery = hasOrderTool && orderIdRegex.test(userMessage);
 
-    const shouldAskForPin = isLocationQuery && nearestRegex.test(userMessage) && 
+    const shouldAskForPin = isLocationQuery && nearestRegex.test(userMessage) &&
       !userMessage.toLowerCase().includes(" in ") && !userMessage.includes(" في ");
 
     let toolChoice: any = enabledTools.length > 0 ? "auto" : "none";
@@ -298,7 +300,7 @@ export class TextMessageHandler extends BaseMessageHandler {
       tools: enabledTools,
       tool_choice: toolChoice
     });
-    
+
     let firstCallTimeoutId: NodeJS.Timeout | null = null;
     const timeoutPromise = new Promise<ChatCompletionResult>((resolve) => {
       firstCallTimeoutId = setTimeout(() => {
@@ -309,19 +311,19 @@ export class TextMessageHandler extends BaseMessageHandler {
         resolve({ success: false, error: "Request timeout. Please try again." });
       }, 25000) // 25s timeout (increased from 10s for production)
     });
-    
+
     const firstResult: ChatCompletionResult = await Promise.race([firstResultPromise, timeoutPromise])
       .finally(() => {
         if (firstCallTimeoutId) clearTimeout(firstCallTimeoutId);
       })
       .catch(error => {
-      logger.error("OpenAI first call error", { 
-        error: error.message,
-        phoneNumber,
-        stack: error.stack
+        logger.error("OpenAI first call error", {
+          error: error.message,
+          phoneNumber,
+          stack: error.stack
+        });
+        return { success: false, error: "Request timeout. Please try again." };
       });
-      return { success: false, error: "Request timeout. Please try again." };
-    });
 
     if (!firstResult.success) {
       logger.error("OpenAI call failed", { error: firstResult.error });
@@ -344,10 +346,10 @@ export class TextMessageHandler extends BaseMessageHandler {
     // If AI wants to call tools
     if (firstResult.tool_calls && firstResult.tool_calls.length > 0) {
       tracker.addEvent(`Executing ${firstResult.tool_calls.length} tool call(s)`);
-      
+
       // Clean phone number (remove + prefix)
       const cleanPhoneNumber = phoneNumber.replace(/^\+/, "");
-      
+
       // Execute all tool calls in parallel
       // Auto-inject phone_number for order tools if not provided
       // Pass phoneNumber for validation to ensure users can only access their own orders
@@ -375,19 +377,19 @@ export class TextMessageHandler extends BaseMessageHandler {
             ...(storedUserMessage?.message_id && { messageId: storedUserMessage.message_id }),
             ...(userMessage && { userMessage }) // Pass user message for single product detection
           };
-          
+
           return executeTool(toolCall, phoneNumber, context);
         })
       );
-      
+
       // Store product data for image sending
       const productData: { products: Product[]; isSingleProduct: boolean } | null = (() => {
-        const productToolResults = toolResults.filter(tr => 
+        const productToolResults = toolResults.filter(tr =>
           tr.name === "search_products" || tr.name === "get_product_details"
         );
-        
+
         if (productToolResults.length === 0) return null;
-        
+
         // Check if it's a single product (get_product_details) or multiple (search_products)
         const singleProductResult = productToolResults.find(tr => tr.name === "get_product_details");
         if (singleProductResult?.metadata?.isSingleProduct && singleProductResult.metadata.products) {
@@ -396,7 +398,7 @@ export class TextMessageHandler extends BaseMessageHandler {
             isSingleProduct: true
           };
         }
-        
+
         // Multiple products from search
         const searchResult = productToolResults.find(tr => tr.name === "search_products");
         if (searchResult?.metadata?.products) {
@@ -407,18 +409,18 @@ export class TextMessageHandler extends BaseMessageHandler {
             isSingleProduct: isSingleProduct
           };
         }
-        
+
         return null;
       })();
 
       // Store order data for template sending
       const orderData: { order: Order; isSingleOrder: boolean } | null = (() => {
-        const orderToolResults = toolResults.filter(tr => 
+        const orderToolResults = toolResults.filter(tr =>
           tr.name === "track_order" || tr.name === "get_order_details"
         );
-        
+
         if (orderToolResults.length === 0) return null;
-        
+
         // Check if it's a single order (get_order_details) or multiple (track_order)
         const singleOrderResult = orderToolResults.find(tr => tr.name === "get_order_details");
         if (singleOrderResult?.metadata?.isSingleOrder && singleOrderResult.metadata.order) {
@@ -427,7 +429,7 @@ export class TextMessageHandler extends BaseMessageHandler {
             isSingleOrder: true
           };
         }
-        
+
         // Multiple orders from track_order - use first order for template
         const trackOrderResult = orderToolResults.find(tr => tr.name === "track_order");
         if (trackOrderResult?.metadata?.orders && trackOrderResult.metadata.orders.length > 0) {
@@ -437,7 +439,7 @@ export class TextMessageHandler extends BaseMessageHandler {
             isSingleOrder: false
           };
         }
-        
+
         return null;
       })();
 
@@ -465,8 +467,8 @@ export class TextMessageHandler extends BaseMessageHandler {
               type: "function" as const,
               function: {
                 name: tc.function.name,
-                arguments: typeof tc.function.arguments === 'string' 
-                  ? tc.function.arguments 
+                arguments: typeof tc.function.arguments === 'string'
+                  ? tc.function.arguments
                   : JSON.stringify(tc.function.arguments)
               }
             };
@@ -495,7 +497,7 @@ export class TextMessageHandler extends BaseMessageHandler {
       // This is the critical guard that prevents hallucination — the AI never sees the
       // "no results" data and therefore cannot invent a fake address.
       const locationToolResult = toolResults.find(tr => tr.name === "search_locations");
-      
+
       const isLocationNoResults = (() => {
         if (!locationToolResult?.content) return false;
         // Backward-compatible tag
@@ -551,19 +553,19 @@ export class TextMessageHandler extends BaseMessageHandler {
 
       // Check credits again before final response (in case status changed)
       const creditsStillAvailable = await openaiCreditService.areCreditsAvailable().catch(() => true);
-      
+
       if (!creditsStillAvailable) {
         logger.warn("⚠️ OpenAI credits unavailable during final response - skipping API call", { phoneNumber });
         // Detect user language and send fun energy message
         const userLanguage = detectLanguage(userMessage);
-        const energyMessage = userLanguage === 'ar' 
+        const energyMessage = userLanguage === 'ar'
           ? "عذرًا! طاقتي منخفضة! ⚡ أحتاج إلى دفعة سريعة للعودة لمساعدتك. سأكون جاهزًا لمساعدتك قريبًا!"
           : "Oops! I'm running low on energy! ⚡ I need a quick boost to get back to helping you. I'll be ready to assist you soon!";
-        
+
         await this.sendMessage(phoneNumber, energyMessage, tracker);
         return {
-          ...tracker.getResult(),
-          message: null // No AI message since credits are unavailable
+          message: null,
+          alreadySent: true
         };
       }
 
@@ -575,7 +577,7 @@ export class TextMessageHandler extends BaseMessageHandler {
         temperature: 0.7,
         max_tokens: 1000 // Increased from 500 to prevent response truncation
       });
-      
+
       let finalCallTimeoutId: NodeJS.Timeout | null = null;
       const finalTimeoutPromise = new Promise<ChatCompletionResult>((resolve) => {
         finalCallTimeoutId = setTimeout(() => {
@@ -587,38 +589,38 @@ export class TextMessageHandler extends BaseMessageHandler {
           resolve({ success: false, error: "Response generation timeout. Please try again." });
         }, 30000) // 30s timeout (increased from 15s for production)
       });
-      
+
       const finalResult: ChatCompletionResult = await Promise.race([finalResultPromise, finalTimeoutPromise])
         .finally(() => {
           if (finalCallTimeoutId) clearTimeout(finalCallTimeoutId);
         })
         .catch(error => {
-        logger.error("OpenAI final call error", { 
-          error: error.message,
-          phoneNumber,
-          hasToolResults: toolResults.length > 0,
-          stack: error.stack
+          logger.error("OpenAI final call error", {
+            error: error.message,
+            phoneNumber,
+            hasToolResults: toolResults.length > 0,
+            stack: error.stack
+          });
+          return { success: false, error: "Response generation timeout. Please try again." };
         });
-        return { success: false, error: "Response generation timeout. Please try again." };
-      });
 
       if (!finalResult.success || !finalResult.message) {
-        logger.error("OpenAI final response failed", { 
+        logger.error("OpenAI final response failed", {
           error: finalResult.error,
           hasToolResults: toolResults.length > 0,
           hasProductData: !!productData,
           hasOrderData: !!orderData
         });
-        
+
         // orderData is defined in the outer scope above
-        
+
         // If we have tool results but OpenAI failed, try to use the tool result content directly
         if (toolResults.length > 0) {
           // Check for order tool errors first (they have specific error messages)
-          const orderToolResult = toolResults.find(tr => 
+          const orderToolResult = toolResults.find(tr =>
             tr.name === "track_order" || tr.name === "get_order_details"
           );
-          
+
           if (orderToolResult && orderToolResult.content) {
             // Use the order tool error message directly
             logger.info("Using order tool error message as fallback response");
@@ -626,13 +628,13 @@ export class TextMessageHandler extends BaseMessageHandler {
               message: orderToolResult.content
             };
           }
-          
+
           // Check for product tool results
           if (productData && productData.products && productData.products.length > 0) {
-            const productToolResult = toolResults.find(tr => 
+            const productToolResult = toolResults.find(tr =>
               tr.name === "search_products" || tr.name === "get_product_details"
             );
-            
+
             if (productToolResult && productToolResult.content) {
               // Use the tool result content as a fallback response
               logger.info("Using product tool result as fallback response due to OpenAI failure");
@@ -641,14 +643,14 @@ export class TextMessageHandler extends BaseMessageHandler {
                 productData: productData
               };
             }
-            
+
             // Even if tool result content is not ideal, we have product data - return brief message
             logger.info("Returning brief message with product data despite OpenAI failure");
             const fallbackMsg = userLanguage === 'ar'
               ? `عثرنا على ${productData.products.length} من المنتجات لك. إليك التفاصيل:`
               : `Found ${productData.products.length} product${productData.products.length > 1 ? "s" : ""} for you. Here are the details:`;
-            const result: { 
-              message: string; 
+            const result: {
+              message: string;
               productData: { products: Product[]; isSingleProduct: boolean };
               orderData?: { order: Order; isSingleOrder: boolean };
             } = {
@@ -660,22 +662,22 @@ export class TextMessageHandler extends BaseMessageHandler {
             }
             return result;
           }
-          
+
           // If we have any tool result with content, use it
           const anyToolResult = toolResults.find(tr => tr.content);
           if (anyToolResult && anyToolResult.content) {
             // Check if the content is JSON (likely from location tool)
             let finalFallbackMessage = anyToolResult.content;
-            
+
             try {
               if (anyToolResult.content.trim().startsWith('{')) {
                 const parsed = JSON.parse(anyToolResult.content);
-                
+
                 // If it's a location SUCCESS result, format it nicely
                 if (parsed.tool_status === "SUCCESS" && parsed.locations && parsed.locations.length > 0) {
                   const totalCount = parsed.total_found_in_database || parsed.count || parsed.locations.length;
                   const userLanguage = detectLanguage(userMessage);
-                  
+
                   if (userLanguage === 'ar') {
                     finalFallbackMessage = `لدينا ${totalCount} فرعاً في المملكة العربية السعودية. إليك تفاصيل بعض الفروع:\n\n`;
                     parsed.locations.forEach((loc: any, idx: number) => {
@@ -703,12 +705,12 @@ export class TextMessageHandler extends BaseMessageHandler {
                       finalFallbackMessage += "You can find the full list of our branches on our website.";
                     }
                   }
-                  
+
                   logger.info("Formatted location JSON into readable fallback message");
                 } else if (parsed.tool_status === "NO_RESULTS") {
                   // Handled by the bypass logic above, but here as a secondary fallback
                   const userLanguage = detectLanguage(userMessage);
-                  finalFallbackMessage = userLanguage === 'ar' 
+                  finalFallbackMessage = userLanguage === 'ar'
                     ? (parsed.messages?.ar || "عذراً، لا يوجد لدينا فرع حالياً في هذا الموقع.")
                     : (parsed.messages?.en || "Currently, we don't have a branch in this location.");
                 }
@@ -718,33 +720,33 @@ export class TextMessageHandler extends BaseMessageHandler {
               logger.debug("Fallback content is not JSON or failed to parse", { error: (e as Error).message });
             }
 
-            logger.info("Using tool result content as fallback response", { 
+            logger.info("Using tool result content as fallback response", {
               toolName: anyToolResult.name,
-              isFormatted: finalFallbackMessage !== anyToolResult.content 
+              isFormatted: finalFallbackMessage !== anyToolResult.content
             });
-            
+
             return {
               message: finalFallbackMessage
             };
           }
         }
-        
+
         return { message: null };
       }
-      
+
       // Check if the final response contains error information from order tools
       // If OpenAI didn't properly format the error, use the tool result directly
-      const orderToolResult = toolResults.find(tr => 
+      const orderToolResult = toolResults.find(tr =>
         tr.name === "track_order" || tr.name === "get_order_details"
       );
-      
+
       // ALWAYS use order tool error messages if they contain error keywords
       // This ensures users get error messages even if OpenAI doesn't format them properly
-      if (orderToolResult && orderToolResult.content && 
-          (orderToolResult.content.includes("unavailable") || 
-           orderToolResult.content.includes("trouble retrieving") ||
-           orderToolResult.content.includes("trouble") ||
-           orderToolResult.content.includes("registered"))) {
+      if (orderToolResult && orderToolResult.content &&
+        (orderToolResult.content.includes("unavailable") ||
+          orderToolResult.content.includes("trouble retrieving") ||
+          orderToolResult.content.includes("trouble") ||
+          orderToolResult.content.includes("registered"))) {
         // If the tool returned an error message, ALWAYS use it for consistency
         logger.info("Order tool returned error message, using it directly", {
           toolMessage: orderToolResult.content,
@@ -755,8 +757,8 @@ export class TextMessageHandler extends BaseMessageHandler {
         };
       }
 
-      const result: { 
-        message: string; 
+      const result: {
+        message: string;
         productData?: { products: Product[]; isSingleProduct: boolean };
         orderData?: { order: Order; isSingleOrder: boolean };
         shouldSendFeedback?: boolean;
@@ -765,15 +767,15 @@ export class TextMessageHandler extends BaseMessageHandler {
         message: finalResult.message,
         shouldSendFeedback: shouldSendFeedbackFromTools,
       };
-      
+
       if (productData) {
         result.productData = productData;
       }
-      
+
       if (orderData) {
         result.orderData = orderData;
       }
-      
+
       return result;
     }
 
@@ -790,9 +792,9 @@ export class TextMessageHandler extends BaseMessageHandler {
     tracker: TimingTracker
   ): Promise<ProcessingResult> {
     tracker.addEvent("TEXT message handler started");
-    
+
     const text = message.message_content?.text;
-    
+
     if (!text) {
       logger.warn("TEXT message received without text content", { phoneNumber, message });
       return tracker.getResult();
@@ -814,24 +816,24 @@ export class TextMessageHandler extends BaseMessageHandler {
     }
     tracker.addEvent("Applying guardrails (quick check)");
     const quickCheck = quickGuardrailCheck(text);
-    
+
     if (!quickCheck.passed) {
       logger.warn("Guardrails blocked message (quick check)", {
         phoneNumber,
         reason: quickCheck.error,
         injectionDetected: quickCheck.injectionDetected
       });
-      
+
       // Send safe response
       const safeResponse = quickCheck.error || "I can't process that request. How else can I help you?";
       await this.sendMessage(phoneNumber, safeResponse, tracker);
-      
+
       return tracker.getResult();
     }
 
     // Use sanitized input from quick check
     const sanitizedText = quickCheck.sanitizedInput || text;
-    
+
     // Run full moderation check in background (non-blocking)
     // This allows response to proceed while moderation completes
     processGuardrails(text).then(guardrailResult => {
@@ -876,6 +878,36 @@ export class TextMessageHandler extends BaseMessageHandler {
       messagePreview: sanitizedText.substring(0, 50)
     });
 
+    // Fast-path greeting bypass (instant response without calling OpenAI)
+    if (isGreeting(sanitizedText)) {
+      tracker.addEvent("Simple greeting detected (fast-path bypass OpenAI)");
+      logger.info("Handling simple greeting via fast-path", { phoneNumber, text: sanitizedText });
+
+      const greetingResponse = userMessageLanguage === 'ar'
+        ? "أهلاً بك في مجموعة الحميضي!\nكيف يمكنني مساعدتك اليوم؟ يمكنك الاستفسار عن منتجاتنا أو تتبع طلبك أو السؤال عن فروعنا."
+        : "Hello! Welcome to AlHomaidhi Group.\nHow can I help you today? You can ask about our watches, track an order, or find store locations.";
+
+      // Store assistant message in conversation history
+      const assistantMessageId = `assistant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const conversationId = storedUserMessage?.conversation_id;
+
+      await conversationService.storeAssistantMessage(
+        phoneNumber,
+        assistantMessageId,
+        greetingResponse,
+        {
+          response_time_ms: Math.round(tracker.getTotalTime()),
+          openai_time_ms: 0,
+          processing_time_ms: Math.round(tracker.getTotalTime()),
+          should_send_feedback: false
+        },
+        conversationId
+      );
+
+      await this.sendMessage(phoneNumber, greetingResponse, tracker);
+      return tracker.getResult();
+    }
+
     // Process with OpenAI (use sanitized input) - with tools support
     tracker.addEvent("Processing with OpenAI");
     const aiResult = await this.processWithTools(
@@ -888,22 +920,26 @@ export class TextMessageHandler extends BaseMessageHandler {
     );
     tracker.addEvent(`OpenAI processing completed`);
 
+    if (aiResult.alreadySent) {
+      return tracker.getResult();
+    }
+
     // Handle case where OpenAI failed but we might have product or order data
     let aiResponse: string;
     const productData = aiResult.productData;
     const orderData = aiResult.orderData;
     const shouldSendLocationTemplate = aiResult.shouldSendLocationTemplate === true;
-    
+
     if (!aiResult.message) {
-      logger.error("OpenAI processing failed - no message returned", { 
+      logger.error("OpenAI processing failed - no message returned", {
         phoneNumber,
         hasProductData: !!productData,
         productCount: productData?.products?.length || 0
       });
-      
+
       // If we have product data, we can still send products with a brief message
       if (productData && productData.products && productData.products.length > 0) {
-        logger.info("Using product data despite OpenAI failure", { 
+        logger.info("Using product data despite OpenAI failure", {
           phoneNumber,
           productCount: productData.products.length
         });
@@ -922,10 +958,10 @@ export class TextMessageHandler extends BaseMessageHandler {
     } else {
       aiResponse = aiResult.message;
     }
-    
+
     // Ensure we have a message to send
     if (!aiResponse || aiResponse.trim().length === 0) {
-      logger.error("No AI response to send", { 
+      logger.error("No AI response to send", {
         phoneNumber,
         hasProductData: !!productData,
         hasOrderData: !!orderData,
@@ -937,7 +973,7 @@ export class TextMessageHandler extends BaseMessageHandler {
       await this.sendMessage(phoneNumber, fallbackResponse, tracker);
       return tracker.getResult();
     }
-    
+
     tracker.addEvent("AI response generated");
 
     // Calculate response time
@@ -949,15 +985,15 @@ export class TextMessageHandler extends BaseMessageHandler {
     // Check if feedback should be sent based on tool results or AI response
     // Import feedback detection utility
     const { shouldSendFeedbackFromAIResponse } = await import("../../../utils/feedback-detection.util.js");
-    
+
     // Check tool results for feedback flags (from processWithTools)
     let shouldSendFeedback = aiResult.shouldSendFeedback === true;
-    
+
     // If no tool flag, check AI response as fallback
     if (!shouldSendFeedback && aiResult.message) {
       shouldSendFeedback = shouldSendFeedbackFromAIResponse(aiResponse);
     }
-    
+
     // Store assistant message with response time and accuracy data
     tracker.addEvent("Storing assistant message");
     // If location template is requested, do NOT store a synthetic assistant message ID.
@@ -972,10 +1008,10 @@ export class TextMessageHandler extends BaseMessageHandler {
       processing_time_ms: Math.round(processingTime),
       should_send_feedback: shouldSendFeedback // Flag for webhook handler
     };
-    
+
     // Get conversation ID from stored user message
     const conversationId = storedUserMessage?.conversation_id;
-    
+
     await conversationService.storeAssistantMessage(
       phoneNumber,
       assistantMessageId,
@@ -988,20 +1024,20 @@ export class TextMessageHandler extends BaseMessageHandler {
     // If products are available, send product templates accordingly
     if (productData?.products && productData.products.length > 0) {
       const products = productData.products;
-      
+
       // Use user's message language for template (not AI response language)
       // This ensures templates match the language the user is using
       const language = userMessageLanguage || detectLanguage(aiResponse);
       const templateName = language === 'ar' ? 'product_card_arabic' : 'product_card';
       const languageCode = language === 'ar' ? 'ar' : 'en';
-      
+
       logger.info("Using template language based on user message", {
         phoneNumber,
         userMessageLanguage,
         templateName,
         languageCode
       });
-      
+
       // Log product data for debugging
       logger.info("Product data for template sending", {
         phoneNumber,
@@ -1010,7 +1046,7 @@ export class TextMessageHandler extends BaseMessageHandler {
         language,
         templateName
       });
-      
+
       if (productData.isSingleProduct) {
         // Single product - send brief AI message first, then product template
         const product = products[0];
@@ -1024,12 +1060,12 @@ export class TextMessageHandler extends BaseMessageHandler {
           await this.sendMessage(phoneNumber, aiResponse, tracker);
           return tracker.getResult();
         }
-        
+
         tracker.addEvent("Sending single product template");
-        
+
         // First send the brief AI response
         const textResult = await this.sendMessage(phoneNumber, aiResponse, tracker);
-        
+
         if (!textResult.success) {
           logger.error("Failed to send single product text response", {
             phoneNumber,
@@ -1037,7 +1073,7 @@ export class TextMessageHandler extends BaseMessageHandler {
           });
           return tracker.getResult();
         }
-        
+
         // Build product details for template
         const productName = product.product_details?.name || "Product";
         const productSku = product.product_details?.sku || "";
@@ -1045,14 +1081,14 @@ export class TextMessageHandler extends BaseMessageHandler {
         // Add "SAR" to price if not already present
         const productPrice = rawPrice === "N/A" ? "N/A" : rawPrice.includes("SAR") ? rawPrice : `${rawPrice} SAR`;
         const productSlug = product.product_details?.slug || "";
-        
+
         logger.info("Sending single product template", {
           phoneNumber,
           productId: product.product_details?.product_id,
           templateName,
           languageCode
         });
-        
+
         // Send product template
         const templateResult = await this.aisensyService.sendProductTemplate(
           phoneNumber,
@@ -1064,7 +1100,7 @@ export class TextMessageHandler extends BaseMessageHandler {
           productPrice,
           productSlug
         );
-        
+
         if (templateResult.success) {
           logger.info("Single product template sent successfully", {
             phoneNumber,
@@ -1081,10 +1117,10 @@ export class TextMessageHandler extends BaseMessageHandler {
       } else {
         // Multiple products - send brief AI message first, then product templates
         tracker.addEvent("Sending multiple products with templates");
-        
+
         // First send the brief AI response
         const textResult = await this.sendMessage(phoneNumber, aiResponse, tracker);
-        
+
         if (!textResult.success) {
           logger.error("Failed to send multiple products text", {
             phoneNumber,
@@ -1092,22 +1128,22 @@ export class TextMessageHandler extends BaseMessageHandler {
           });
           return tracker.getResult();
         }
-        
+
         logger.info("Multiple products text sent, now sending templates", {
           phoneNumber,
           productCount: products.length,
           templateName,
           languageCode
         });
-        
+
         // Send ONE template per product (limit to top 5 to avoid spamming)
         const productsToShow = products.slice(0, 5);
-        
+
         // Filter products that have images (MANDATORY for templates)
         const productsWithImages = productsToShow.filter(
           product => product && product.images && product.images.length > 0 && product.images[0]?.src
         );
-        
+
         if (productsWithImages.length === 0) {
           logger.warn("No products with images found - cannot send templates", {
             phoneNumber,
@@ -1115,7 +1151,7 @@ export class TextMessageHandler extends BaseMessageHandler {
           });
           return tracker.getResult();
         }
-        
+
         // Send product templates for each product in separate messages
         const templatePromises = productsWithImages.map((product, index) => {
           const firstImage = product.images[0];
@@ -1127,7 +1163,7 @@ export class TextMessageHandler extends BaseMessageHandler {
             });
             return null;
           }
-          
+
           // Extract product details
           const productName = product.product_details?.name || "Product";
           const productSku = product.product_details?.sku || "";
@@ -1135,7 +1171,7 @@ export class TextMessageHandler extends BaseMessageHandler {
           // Add "SAR" to price if not already present
           const productPrice = rawPrice === "N/A" ? "N/A" : rawPrice.includes("SAR") ? rawPrice : `${rawPrice} SAR`;
           const productSlug = product.product_details?.slug || "";
-          
+
           logger.info("Preparing product template", {
             phoneNumber,
             productIndex: index + 1,
@@ -1144,7 +1180,7 @@ export class TextMessageHandler extends BaseMessageHandler {
             templateName,
             languageCode
           });
-          
+
           // Add small delay based on index to avoid rate limiting (staggered)
           return new Promise(resolve => setTimeout(resolve, index * 200))
             .then(() => this.aisensyService.sendProductTemplate(
@@ -1158,17 +1194,17 @@ export class TextMessageHandler extends BaseMessageHandler {
               productSlug
             ));
         }).filter(Boolean);
-        
+
         // Send all templates in parallel (with staggered delays)
         const results = await Promise.all(templatePromises);
-        
+
         const successCount = results.filter(r => r && r.success).length;
         logger.info("Multiple product templates sent", {
           phoneNumber,
           templatesSent: successCount,
           totalProducts: productsWithImages.length
         });
-        
+
         if (successCount === 0) {
           logger.error("Failed to send any product templates", {
             phoneNumber,
@@ -1182,13 +1218,13 @@ export class TextMessageHandler extends BaseMessageHandler {
       // Use user's message language for template (not AI response language)
       const language = userMessageLanguage || detectLanguage(aiResponse);
       const isAramexOrder = orderService.isAramexOrder(order);
-      
+
       // Select template based on order type (Aramex vs regular) and language
       const templateName = isAramexOrder
         ? (language === 'ar' ? 'order_ar_aramex' : 'order_en_aramex_new')
         : (language === 'ar' ? 'order_ar_new' : 'order_en_new');
       const languageCode = language === 'ar' ? 'ar' : 'en';
-      
+
       logger.info("Using order template language based on user message", {
         phoneNumber,
         userMessageLanguage,
@@ -1196,7 +1232,7 @@ export class TextMessageHandler extends BaseMessageHandler {
         languageCode,
         isAramexOrder
       });
-      
+
       // Get image from first order item, fallback to default if not available
       let orderImageUrl = "https://alhomaidhigroup.com/wp-content/uploads/2025/12/Z3lqS1NTMmFCL1NmK0kxUzQzSE91Zz09.png"; // Default fallback
       if (order.items && order.items.length > 0 && order.items[0].image) {
@@ -1212,22 +1248,22 @@ export class TextMessageHandler extends BaseMessageHandler {
           itemCount: order.items?.length || 0
         });
       }
-      
+
       // Extract order details
       const customerName = orderService.getCustomerName(order);
-      const orderDescription = language === 'ar' 
+      const orderDescription = language === 'ar'
         ? orderService.formatOrderDescriptionArabic(order)
         : orderService.formatOrderDescription(order);
       const orderId = order.order_details?.order_id?.replace(/^#/, "") || "";
       const orderStatus = language === 'ar'
         ? orderService.formatOrderStatusArabic(order.order_details?.order_status || "")
         : orderService.formatOrderStatus(order.order_details?.order_status || "");
-      
+
       // Get Aramex tracking info if available
       const trackingNumber = isAramexOrder ? orderService.getPrimaryTrackingNumber(order) : null;
       const allTrackingNumbers = isAramexOrder ? orderService.getAllTrackingNumbers(order) : [];
       const shippingLabelUrl = isAramexOrder ? orderService.getShippingLabelUrl(order) : null;
-      
+
       logger.info("Sending order template", {
         phoneNumber,
         orderId,
@@ -1240,10 +1276,10 @@ export class TextMessageHandler extends BaseMessageHandler {
         allTrackingNumbers,
         shippingLabelUrl
       });
-      
+
       // First send the AI response text
       const textResult = await this.sendMessage(phoneNumber, aiResponse, tracker);
-      
+
       if (!textResult.success) {
         logger.error("Failed to send order text response", {
           phoneNumber,
@@ -1251,7 +1287,7 @@ export class TextMessageHandler extends BaseMessageHandler {
         });
         return tracker.getResult();
       }
-      
+
       // Send order template with item image (or fallback)
       // For Aramex orders, include tracking number and URL button
       const templateResult = await this.aisensyService.sendOrderTemplate(
@@ -1266,7 +1302,7 @@ export class TextMessageHandler extends BaseMessageHandler {
         trackingNumber || undefined, // Pass tracking number for Aramex templates
         isAramexOrder // Include URL button for Aramex orders
       );
-      
+
       if (templateResult.success) {
         logger.info("Order template sent successfully", {
           phoneNumber,
@@ -1289,9 +1325,9 @@ export class TextMessageHandler extends BaseMessageHandler {
         hasProductData: !!productData,
         hasOrderData: !!orderData
       });
-      
+
       const result = await this.sendMessage(phoneNumber, aiResponse, tracker);
-      
+
       if (result.success) {
         logger.info("AI response sent successfully", {
           phoneNumber,
@@ -1300,7 +1336,7 @@ export class TextMessageHandler extends BaseMessageHandler {
           productCount: productData?.products?.length || 0,
           hasOrderData: !!orderData
         });
-        
+
         // Check for re-engagement error after a delay (edge case: 24-hour window)
         // This is handled asynchronously to avoid blocking the response
         if (result.message_id) {
@@ -1309,12 +1345,12 @@ export class TextMessageHandler extends BaseMessageHandler {
               const details = await this.aisensyService.getMessageDetails(result.message_id!);
               if (details.success && details.message && details.message.status === "FAILED") {
                 const failureResponse = details.message.failureResponse as any;
-                const isReEngagementError = 
+                const isReEngagementError =
                   failureResponse?.code === "131047" ||
                   failureResponse?.reason === "Re-engagement message" ||
-                  (failureResponse?.error_data?.details?.includes("24 hours") && 
-                   failureResponse?.error_data?.details?.includes("last replied"));
-                
+                  (failureResponse?.error_data?.details?.includes("24 hours") &&
+                    failureResponse?.error_data?.details?.includes("last replied"));
+
                 if (isReEngagementError) {
                   logger.warn("⚠️  Re-engagement error detected - 24 hour messaging window expired", {
                     phoneNumber,
@@ -1323,7 +1359,7 @@ export class TextMessageHandler extends BaseMessageHandler {
                     errorReason: failureResponse?.reason,
                     errorDetails: failureResponse?.error_data?.details
                   });
-                  
+
                   // Note: Since the user just sent a message, this shouldn't happen
                   // But if it does, the next message from the user will reopen the window
                   // We log this for monitoring purposes

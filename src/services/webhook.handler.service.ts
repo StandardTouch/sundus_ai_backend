@@ -120,43 +120,42 @@ export class WebhookHandlerService {
         messageId: message.id
       });
 
-      // Send instant acknowledgement
-      // Don't wait for this to finish to avoid delaying AI processing
-      const incomingText = message.message_content?.text || "";
-      
-      // SKIP acknowledgement for simple greetings, button clicks (QUICK_REPLY), or test messages
-      const { isGreeting } = await import("../utils/greeting-detector.util.js");
-      const isSimpleGreeting = isGreeting(incomingText);
-      const isQuickReply = messageType === "QUICK_REPLY";
-      const normalizedIncoming = incomingText.trim().toLowerCase();
-      const isTestMessage = normalizedIncoming === "test" || normalizedIncoming === "testing" || normalizedIncoming.startsWith("test ") || normalizedIncoming.startsWith("testing ");
-      
-      if (!isSimpleGreeting && !isQuickReply && !isTestMessage) {
-        const userLanguage = detectLanguage(incomingText);
-        const processingMsg = userLanguage === 'ar' 
-          ? "جاري معالجة طلبك..." 
-          : "Your request is being processed...";
+      // Instant acknowledgment (enabled by default)
+      const ENABLE_INSTANT_ACKNOWLEDGMENT = process.env.ENABLE_INSTANT_ACKNOWLEDGMENT !== "false";
+      if (ENABLE_INSTANT_ACKNOWLEDGMENT) {
+        const incomingText = message.message_content?.text || "";
+        const { isGreeting } = await import("../utils/greeting-detector.util.js");
+        const isSimpleGreeting = isGreeting(incomingText);
+        const isQuickReply = messageType === "QUICK_REPLY";
+        const normalizedIncoming = incomingText.trim().toLowerCase();
+        const isTestMessage = normalizedIncoming === "test" || normalizedIncoming === "testing" || normalizedIncoming.startsWith("test ") || normalizedIncoming.startsWith("testing ");
         
-        this.aisensyService.sendTextMessage(phoneNumber, processingMsg).catch(err => {
-          logger.error("Failed to send instant acknowledgment", { 
-            error: err.message, 
-            phoneNumber 
+        if (!isSimpleGreeting && !isQuickReply && !isTestMessage) {
+          const userLanguage = detectLanguage(incomingText);
+          const processingMsg = userLanguage === 'ar' 
+            ? "جاري معالجة طلبك..." 
+            : "Your request is being processed...";
+          
+          this.aisensyService.sendTextMessage(phoneNumber, processingMsg).catch(err => {
+            logger.error("Failed to send instant acknowledgment", { 
+              error: err.message, 
+              phoneNumber 
+            });
           });
-        });
-      } else {
-        logger.info("Skipping instant acknowledgment", { 
-          phoneNumber, 
-          messageType,
-          isSimpleGreeting,
-          isTestMessage
-        });
+        }
       }
 
       // Route to appropriate handler
       let result;
+      const normalizedType = (messageType || "").toUpperCase().trim();
+      const hasTextContent = !!(message.message_content?.text || message.text || message.message_content?.caption);
       
-      switch (messageType) {
+      switch (normalizedType) {
         case "TEXT":
+        case "BUTTON":
+        case "BUTTON_REPLY":
+        case "INTERACTIVE":
+        case "LIST_REPLY":
           result = await this.textHandler.handle(phoneNumber, message, tracker);
           break;
         
@@ -165,6 +164,7 @@ export class WebhookHandlerService {
           break;
         
         case "AUDIO":
+        case "VOICE":
           result = await this.audioHandler.handle(phoneNumber, message, tracker);
           break;
         
@@ -177,8 +177,13 @@ export class WebhookHandlerService {
           break;
         
         default:
-          logger.info("Unhandled message type", { messageType, phoneNumber });
-          result = await this.defaultHandler.handle(phoneNumber, message, tracker);
+          if (hasTextContent) {
+            logger.info("Routing unhandled message type with text content to TextMessageHandler", { normalizedType, phoneNumber });
+            result = await this.textHandler.handle(phoneNumber, message, tracker);
+          } else {
+            logger.info("Unhandled message type", { normalizedType, phoneNumber });
+            result = await this.defaultHandler.handle(phoneNumber, message, tracker);
+          }
       }
 
       tracker.addEvent("Processing complete");

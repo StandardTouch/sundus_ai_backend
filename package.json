@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon --watch src --ext ts --exec tsx src/app.ts",
+    "dev": "nodemon --watch src --watch .env --ext ts --exec tsx src/app.ts",
     "send-msg": "tsx scripts/send-direct-message.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "NODE_ENV=production tsx src/app.ts"

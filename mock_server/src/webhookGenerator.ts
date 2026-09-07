@@ -128,7 +128,7 @@ export class WebhookGenerator {
         } as ContactMessageContent;
 
       default:
-        return { text: "Unknown message type" } as TextMessageContent;
+        return { text: config.text || (typeof messageType === "string" ? messageType : "Hello, this is a test message") } as TextMessageContent;
     }
   }
 

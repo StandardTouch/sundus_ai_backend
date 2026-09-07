@@ -1,3 +1,4 @@
+// Application entry point (updated key)
 import express from "express";
 import type { Application, Request, Response } from "express";
 import cors from "cors";
@@ -11,6 +12,7 @@ import { initWebhookWorker, closeWebhookWorker } from "./queues/webhook.worker.j
 import { cleanupService } from "./services/cleanup.service.js";
 import { settingsService } from "./settings/services/settings.service.js";
 import { webhookHandlerService } from "./services/webhook.handler.service.js";
+import { openaiCreditService } from "./services/openai-credit.service.js";
 
 // Routes
 import authRoutes from "./auth/routes/auth.routes.js";
@@ -118,6 +120,7 @@ async function startServer() {
   try {
     // Connect to MongoDB
     await connectDatabase();
+    await openaiCreditService.setCreditsAvailable(true).catch(() => {});
 
     // Connect to Redis (for Caching & BullMQ)
     const redisConnected = await connectRedis();
