@@ -1,4 +1,4 @@
-// Application entry point (updated key)
+// Application entry point (keepalive active)
 import express from "express";
 import type { Application, Request, Response } from "express";
 import cors from "cors";

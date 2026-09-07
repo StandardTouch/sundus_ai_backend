@@ -8,6 +8,7 @@ import { AISensyService } from "./aisensy.service.js";
 import { TimingTracker } from "../utils/timing.util.js";
 import { conversationService } from "./conversation.service.js";
 import { detectLanguage } from "../utils/language.util.js";
+import { isGreeting } from "../utils/greeting-detector.util.js";
 import {
   TextMessageHandler,
   ImageMessageHandler,
@@ -124,7 +125,6 @@ export class WebhookHandlerService {
       const ENABLE_INSTANT_ACKNOWLEDGMENT = process.env.ENABLE_INSTANT_ACKNOWLEDGMENT !== "false";
       if (ENABLE_INSTANT_ACKNOWLEDGMENT) {
         const incomingText = message.message_content?.text || "";
-        const { isGreeting } = await import("../utils/greeting-detector.util.js");
         const isSimpleGreeting = isGreeting(incomingText);
         const isQuickReply = messageType === "QUICK_REPLY";
         const normalizedIncoming = incomingText.trim().toLowerCase();

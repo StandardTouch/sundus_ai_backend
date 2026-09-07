@@ -16,6 +16,21 @@ import type {
 import { aisensyConfig, validateAISensyConfig } from "../../config/aisensy.config.js";
 import { logger } from "../../utils/logger.js";
 
+import https from "https";
+import http from "http";
+
+const httpsAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 50,
+  keepAliveMsecs: 30000,
+});
+
+const httpAgent = new http.Agent({
+  keepAlive: true,
+  maxSockets: 50,
+  keepAliveMsecs: 30000,
+});
+
 /**
  * AI Sensy Message API Client
  */
@@ -30,6 +45,8 @@ export class AISensyMessageAPI {
     this.client = axios.create({
       baseURL: aisensyConfig.apiBaseUrl,
       timeout: aisensyConfig.timeout,
+      httpAgent,
+      httpsAgent,
       headers: {
         "Accept": "application/json",
         "Content-Type": "application/json",
