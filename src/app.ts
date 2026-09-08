@@ -1,4 +1,4 @@
-// Application entry point (keepalive active)
+// Application entry point (gpt-4o enabled)
 import express from "express";
 import type { Application, Request, Response } from "express";
 import cors from "cors";

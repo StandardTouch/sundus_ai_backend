@@ -34,7 +34,7 @@ export const openaiConfig = {
    * Default model to use
    * Examples: "gpt-4", "gpt-4-turbo", "gpt-3.5-turbo"
    */
-  defaultModel: process.env.OPENAI_DEFAULT_MODEL || "gpt-4-turbo",
+  defaultModel: process.env.OPENAI_DEFAULT_MODEL || process.env.OPENAI_MODEL || "gpt-4-turbo",
 
   /**
    * Default timeout for API requests (ms)
