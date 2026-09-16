@@ -121,15 +121,15 @@ export class WebhookHandlerService {
         messageId: message.id
       });
 
+      const incomingText = message.message_content?.text || message.text || message.message_content?.caption || "";
+      const normalizedIncoming = incomingText.trim().toLowerCase();
+      const isSimpleGreeting = isGreeting(incomingText);
+      const isQuickReply = messageType === "QUICK_REPLY";
+      const isTestMessage = normalizedIncoming === "test" || normalizedIncoming === "testing" || normalizedIncoming.startsWith("test ") || normalizedIncoming.startsWith("testing ");
+
       // Instant acknowledgment (enabled by default)
       const ENABLE_INSTANT_ACKNOWLEDGMENT = process.env.ENABLE_INSTANT_ACKNOWLEDGMENT !== "false";
       if (ENABLE_INSTANT_ACKNOWLEDGMENT) {
-        const incomingText = message.message_content?.text || "";
-        const isSimpleGreeting = isGreeting(incomingText);
-        const isQuickReply = messageType === "QUICK_REPLY";
-        const normalizedIncoming = incomingText.trim().toLowerCase();
-        const isTestMessage = normalizedIncoming === "test" || normalizedIncoming === "testing" || normalizedIncoming.startsWith("test ") || normalizedIncoming.startsWith("testing ");
-        
         if (!isSimpleGreeting && !isQuickReply && !isTestMessage) {
           const userLanguage = detectLanguage(incomingText);
           const processingMsg = userLanguage === 'ar' 

@@ -803,7 +803,43 @@ export class TextMessageHandler extends BaseMessageHandler {
     tracker.addEvent("Text content extracted");
     logger.info("Received TEXT message", { phoneNumber, text });
 
-    // Direct test message check (bypasses AI, credit check, and guardrails for rapid timing tests)
+    // 1. INSTANT FAST PATH: Direct Greeting Bypass (0ms database & OpenAI bypass)
+    if (isGreeting(text)) {
+      tracker.addEvent("Simple greeting detected (instant fast-path)");
+      logger.info("Handling simple greeting via fast-path", { phoneNumber, text });
+
+      const userMessageLanguage = detectLanguage(text);
+      const greetingResponse = userMessageLanguage === 'ar'
+        ? "أهلاً بك في مجموعة الحميضي!\nكيف يمكنني مساعدتك اليوم؟ يمكنك الاستفسار عن منتجاتنا أو تتبع طلبك أو السؤال عن فروعنا."
+        : "Hello! Welcome to AlHomaidhi Group.\nHow can I help you today? You can ask about our watches, track an order, or find store locations.";
+
+      // Send WhatsApp message immediately
+      await this.sendMessage(phoneNumber, greetingResponse, tracker);
+
+      // Store in MongoDB in the background without delaying user reply
+      const messageId = message.id || message.messageId;
+      const assistantMessageId = `assistant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      conversationService.storeUserMessage(phoneNumber, messageId, text).then((storedUserMsg) => {
+        return conversationService.storeAssistantMessage(
+          phoneNumber,
+          assistantMessageId,
+          greetingResponse,
+          {
+            response_time_ms: Math.round(tracker.getTotalTime()),
+            openai_time_ms: 0,
+            processing_time_ms: Math.round(tracker.getTotalTime()),
+            should_send_feedback: false
+          },
+          storedUserMsg?.conversation_id
+        );
+      }).catch(err => {
+        logger.error("Background greeting conversation storage error", { error: err.message, phoneNumber });
+      });
+
+      return tracker.getResult();
+    }
+
+    // 2. Direct test message check (bypasses AI, credit check, and guardrails for rapid timing tests)
     const normalizedText = text.trim().toLowerCase();
     if (normalizedText === "test" || normalizedText === "testing" || normalizedText.startsWith("test ") || normalizedText.startsWith("testing ")) {
       tracker.addEvent("Test message detected (bypassing AI & credit check)");
@@ -814,6 +850,8 @@ export class TextMessageHandler extends BaseMessageHandler {
 
       return tracker.getResult();
     }
+
+    // 3. Quick guardrail check (regex, < 1ms)
     tracker.addEvent("Applying guardrails (quick check)");
     const quickCheck = quickGuardrailCheck(text);
 
@@ -834,15 +872,13 @@ export class TextMessageHandler extends BaseMessageHandler {
     // Use sanitized input from quick check
     const sanitizedText = quickCheck.sanitizedInput || text;
 
-    // Run full moderation check in background (non-blocking)
-    // This allows response to proceed while moderation completes
+    // 4. Detached background moderation check (fire-and-forget, never blocks response)
     processGuardrails(text).then(guardrailResult => {
       if (!guardrailResult.passed && guardrailResult.contentFlagged) {
         logger.warn("Content moderation flagged message (post-check)", {
           phoneNumber,
           reason: guardrailResult.error
         });
-        // Could send follow-up or log for review, but don't block response
       }
     }).catch(error => {
       logger.error("Background guardrail check error", { error, phoneNumber });
@@ -850,27 +886,30 @@ export class TextMessageHandler extends BaseMessageHandler {
 
     tracker.addEvent("Guardrails passed (quick check, full check in background)");
 
-    // Extract message ID and reply context
+    // 5. Extract message ID and reply context
     const messageId = message.id || message.messageId;
     const repliedToMessageId = message.context?.id || message.replied_to_message_id;
 
-    // Parallelize: Store user message and get conversation history simultaneously
-    tracker.addEvent("Storing user message and building conversation history (parallel)");
-    const [storedUserMessage, conversationHistory] = await Promise.all([
-      conversationService.storeUserMessage(
-        phoneNumber,
-        messageId,
-        sanitizedText,
-        repliedToMessageId
-      ),
-      conversationService.getConversationHistory(
-        phoneNumber,
-        sanitizedText,
-        repliedToMessageId
-      )
-    ]);
+    // Fire user message storage in background
+    let storedUserMessagePromise = conversationService.storeUserMessage(
+      phoneNumber,
+      messageId,
+      sanitizedText,
+      repliedToMessageId
+    ).catch(err => {
+      logger.error("Background storeUserMessage error", { error: err.message, phoneNumber });
+      return null;
+    });
 
-    // Detect user's current message language - use this for response and templates
+    // Fetch conversation history for context building
+    tracker.addEvent("Building conversation history");
+    const conversationHistory = await conversationService.getConversationHistory(
+      phoneNumber,
+      sanitizedText,
+      repliedToMessageId
+    );
+
+    // Detect user's current message language
     const userMessageLanguage = detectLanguage(sanitizedText);
     logger.info("User message language detected", {
       phoneNumber,
@@ -878,35 +917,7 @@ export class TextMessageHandler extends BaseMessageHandler {
       messagePreview: sanitizedText.substring(0, 50)
     });
 
-    // Fast-path greeting bypass (instant response without calling OpenAI)
-    if (isGreeting(sanitizedText)) {
-      tracker.addEvent("Simple greeting detected (fast-path bypass OpenAI)");
-      logger.info("Handling simple greeting via fast-path", { phoneNumber, text: sanitizedText });
-
-      const greetingResponse = userMessageLanguage === 'ar'
-        ? "أهلاً بك في مجموعة الحميضي!\nكيف يمكنني مساعدتك اليوم؟ يمكنك الاستفسار عن منتجاتنا أو تتبع طلبك أو السؤال عن فروعنا."
-        : "Hello! Welcome to AlHomaidhi Group.\nHow can I help you today? You can ask about our watches, track an order, or find store locations.";
-
-      // Store assistant message in conversation history
-      const assistantMessageId = `assistant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const conversationId = storedUserMessage?.conversation_id;
-
-      await conversationService.storeAssistantMessage(
-        phoneNumber,
-        assistantMessageId,
-        greetingResponse,
-        {
-          response_time_ms: Math.round(tracker.getTotalTime()),
-          openai_time_ms: 0,
-          processing_time_ms: Math.round(tracker.getTotalTime()),
-          should_send_feedback: false
-        },
-        conversationId
-      );
-
-      await this.sendMessage(phoneNumber, greetingResponse, tracker);
-      return tracker.getResult();
-    }
+    const storedUserMessage = await storedUserMessagePromise;
 
     // Process with OpenAI (use sanitized input) - with tools support
     tracker.addEvent("Processing with OpenAI");
@@ -983,24 +994,14 @@ export class TextMessageHandler extends BaseMessageHandler {
     const processingTime = totalResponseTime - openaiTime;
 
     // Check if feedback should be sent based on tool results or AI response
-    // Import feedback detection utility
     const { shouldSendFeedbackFromAIResponse } = await import("../../../utils/feedback-detection.util.js");
 
-    // Check tool results for feedback flags (from processWithTools)
     let shouldSendFeedback = aiResult.shouldSendFeedback === true;
-
-    // If no tool flag, check AI response as fallback
     if (!shouldSendFeedback && aiResult.message) {
       shouldSendFeedback = shouldSendFeedbackFromAIResponse(aiResponse);
     }
 
-    // Store assistant message with response time and accuracy data
-    tracker.addEvent("Storing assistant message");
-    // If location template is requested, do NOT store a synthetic assistant message ID.
-    // We will store the actual template message returned by AI Sensy instead.
-    // Legacy location template handling removed
-
-
+    // Store assistant message in background asynchronously (fire-and-forget)
     const assistantMessageId = `assistant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const metadata: ConversationMessage['metadata'] = {
       response_time_ms: Math.round(totalResponseTime),
@@ -1008,17 +1009,17 @@ export class TextMessageHandler extends BaseMessageHandler {
       processing_time_ms: Math.round(processingTime),
       should_send_feedback: shouldSendFeedback // Flag for webhook handler
     };
-
-    // Get conversation ID from stored user message
     const conversationId = storedUserMessage?.conversation_id;
 
-    await conversationService.storeAssistantMessage(
+    conversationService.storeAssistantMessage(
       phoneNumber,
       assistantMessageId,
       aiResponse,
       metadata,
       conversationId
-    );
+    ).catch(err => {
+      logger.error("Background storeAssistantMessage error", { error: err.message, phoneNumber });
+    });
 
     // Send response via WhatsApp
     // If products are available, send product templates accordingly

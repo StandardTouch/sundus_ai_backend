@@ -8,6 +8,9 @@ import type { ConversationMessage, CreateConversationMessageDto } from "../model
 import type { ChatMessage } from "./openai.service.js";
 import { logger } from "../utils/logger.js";
 import { generateConversationId, shouldStartNewConversation } from "../utils/conversation.util.js";
+import { cacheService } from "./cache.service.js";
+
+const CONV_ID_CACHE_TTL = 14400; // 4 hours
 
 /**
  * Conversation context options
@@ -78,26 +81,32 @@ export class ConversationService {
   }
 
   /**
-   * Get or create conversation ID for a phone number
+   * Get or create conversation ID for a phone number with Redis caching
    */
   async getOrCreateConversationId(phoneNumber: string): Promise<string> {
+    const cacheKey = `conv_id:${phoneNumber}`;
     try {
+      const cachedConvId = await cacheService.get<string>(cacheKey);
+      if (cachedConvId) {
+        return cachedConvId;
+      }
+
       // Get the most recent message for this phone number
       const recentMessages = await conversationMessageRepository.getRecentMessages(phoneNumber, 1);
       const lastMessage = recentMessages[0];
 
       // Check if we should start a new conversation
+      let convId: string;
       if (!lastMessage || shouldStartNewConversation(lastMessage.timestamp)) {
-        return generateConversationId();
+        convId = generateConversationId();
+      } else if (lastMessage.conversation_id) {
+        convId = lastMessage.conversation_id;
+      } else {
+        convId = generateConversationId();
       }
 
-      // Use existing conversation ID if available
-      if (lastMessage.conversation_id) {
-        return lastMessage.conversation_id;
-      }
-
-      // Generate new conversation ID if none exists
-      return generateConversationId();
+      await cacheService.set(cacheKey, convId, CONV_ID_CACHE_TTL);
+      return convId;
     } catch (error) {
       logger.error("Error getting conversation ID", { error, phoneNumber });
       return generateConversationId();
@@ -130,6 +139,8 @@ export class ConversationService {
       const message = await conversationMessageRepository.create(messageData);
       logger.info("Stored user message", { phoneNumber, messageId, conversationId: convId });
       
+      // Update cache
+      await cacheService.set(`conv_id:${phoneNumber}`, convId, CONV_ID_CACHE_TTL);
       return message;
     } catch (error) {
       logger.error("Error storing user message", { error, phoneNumber, messageId });
@@ -148,8 +159,11 @@ export class ConversationService {
     conversationId?: string
   ): Promise<ConversationMessage> {
     try {
-      // Get conversation ID from most recent message if not provided
+      // Get conversation ID from cache or most recent message if not provided
       let convId = conversationId;
+      if (!convId) {
+        convId = (await cacheService.get<string>(`conv_id:${phoneNumber}`)) || undefined;
+      }
       if (!convId) {
         const recentMessages = await conversationMessageRepository.getRecentMessages(phoneNumber, 1);
         convId = recentMessages[0]?.conversation_id;
@@ -167,6 +181,9 @@ export class ConversationService {
       const message = await conversationMessageRepository.create(messageData);
       logger.info("Stored assistant message", { phoneNumber, messageId, conversationId: convId });
       
+      if (convId) {
+        await cacheService.set(`conv_id:${phoneNumber}`, convId, CONV_ID_CACHE_TTL);
+      }
       return message;
     } catch (error) {
       logger.error("Error storing assistant message", { error, phoneNumber, messageId });
