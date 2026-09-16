@@ -6,6 +6,12 @@
 import axios, { type AxiosInstance } from "axios";
 import { alhomaidhiConfig, validateAlhomaidhiConfig } from "../../config/alhomaidhi.config.js";
 import { logger } from "../../utils/logger.js";
+import { cacheService } from "../../services/cache.service.js";
+
+// Cache TTL constants (in seconds)
+const BRANDS_CACHE_TTL = 86400; // 24 hours
+const PRODUCT_DETAIL_CACHE_TTL = 3600; // 1 hour
+const PRODUCT_SEARCH_CACHE_TTL = 900; // 15 minutes
 
 /**
  * Product API response types
@@ -90,7 +96,7 @@ export class AlhomaidhiProductAPI {
   }
 
   /**
-   * Search products
+   * Search products with Redis caching
    */
   async searchProducts(query: string, options?: {
     sort_by?: string;
@@ -100,6 +106,21 @@ export class AlhomaidhiProductAPI {
     min_price?: number; // Minimum price filter
     max_price?: number; // Maximum price filter
   }): Promise<ProductListResponse> {
+    const normalizedQuery = (query || "").toLowerCase().trim();
+    const cachePayload = { query: normalizedQuery, ...options };
+    const cacheKey = `alhomaidhi:product:search:${Buffer.from(JSON.stringify(cachePayload)).toString("base64")}`;
+
+    // 1. Check Redis Cache
+    const cached = await cacheService.get<ProductListResponse>(cacheKey);
+    if (cached) {
+      logger.info("Alhomaidhi product search retrieved from cache", {
+        query,
+        resultCount: cached.message?.length || 0,
+        fromCache: true,
+      });
+      return cached;
+    }
+
     try {
       const params: any = {
         search: query,
@@ -138,6 +159,11 @@ export class AlhomaidhiProductAPI {
         status: response.data.status
       });
 
+      // 2. Save to Redis Cache
+      if (response.data && (response.data.status === "APP00" || response.data.status === "APP001" || response.data.message)) {
+        await cacheService.set(cacheKey, response.data, PRODUCT_SEARCH_CACHE_TTL);
+      }
+
       return response.data;
     } catch (error: any) {
       logger.error("Alhomaidhi product search error", { error, query });
@@ -146,9 +172,21 @@ export class AlhomaidhiProductAPI {
   }
 
   /**
-   * Get product details by ID
+   * Get product details by ID with Redis caching
    */
   async getProductDetails(productId: number): Promise<ProductDetailResponse> {
+    const cacheKey = `alhomaidhi:product:detail:${productId}`;
+
+    // 1. Check Redis Cache
+    const cached = await cacheService.get<ProductDetailResponse>(cacheKey);
+    if (cached) {
+      logger.info("Alhomaidhi product details retrieved from cache", {
+        productId,
+        fromCache: true,
+      });
+      return cached;
+    }
+
     try {
       // Add explicit timeout wrapper to enforce timeout
       const response = await Promise.race([
@@ -165,6 +203,11 @@ export class AlhomaidhiProductAPI {
         status: response.data.status
       });
 
+      // 2. Save to Redis Cache
+      if (response.data && (response.data.status === "APP00" || response.data.status === "APP001" || response.data.message)) {
+        await cacheService.set(cacheKey, response.data, PRODUCT_DETAIL_CACHE_TTL);
+      }
+
       return response.data;
     } catch (error: any) {
       logger.error("Alhomaidhi product details error", { error, productId });
@@ -173,9 +216,21 @@ export class AlhomaidhiProductAPI {
   }
 
   /**
-   * List all brands
+   * List all brands with Redis caching (24h TTL)
    */
   async listBrands(): Promise<BrandResponse> {
+    const cacheKey = "alhomaidhi:product:brands";
+
+    // 1. Check Redis Cache
+    const cached = await cacheService.get<BrandResponse>(cacheKey);
+    if (cached) {
+      logger.info("Alhomaidhi brands retrieved from cache", {
+        brandCount: cached.message?.length || 0,
+        fromCache: true,
+      });
+      return cached;
+    }
+
     try {
       const response = await this.client.get<BrandResponse>("/retrieve_brands");
 
@@ -184,6 +239,11 @@ export class AlhomaidhiProductAPI {
         status: response.data.status
       });
 
+      // 2. Save to Redis Cache (24 hours)
+      if (response.data && (response.data.status === "APP00" || response.data.status === "APP001" || response.data.message)) {
+        await cacheService.set(cacheKey, response.data, BRANDS_CACHE_TTL);
+      }
+
       return response.data;
     } catch (error: any) {
       logger.error("Alhomaidhi brands error", { error });
@@ -191,4 +251,7 @@ export class AlhomaidhiProductAPI {
     }
   }
 }
+
+export const alhomaidhiProductAPI = new AlhomaidhiProductAPI();
+
 

@@ -6,6 +6,10 @@
 import axios, { type AxiosInstance } from "axios";
 import { alhomaidhiConfig, validateAlhomaidhiConfig } from "../../config/alhomaidhi.config.js";
 import { logger } from "../../utils/logger.js";
+import { cacheService } from "../../services/cache.service.js";
+
+// Cache TTL for orders (in seconds) - short TTL so order status updates remain fresh
+const ORDER_CACHE_TTL = 120; // 2 minutes
 
 /**
  * Aramex shipping details
@@ -134,13 +138,26 @@ export class AlhomaidhiOrderAPI {
         original: phoneNumber,
         cleaned: cleanPhoneNumber
       });
-      
+
       const params: any = {
         search: cleanPhoneNumber,
         sort_by: options?.sort_by || "asc",
         page: options?.page !== undefined ? options.page : "",
         per_page: options?.per_page !== undefined ? options.per_page : "null",
       };
+
+      const cacheKey = `alhomaidhi:orders:${cleanPhoneNumber}:${JSON.stringify(params)}`;
+
+      // 1. Check Redis Cache
+      const cached = await cacheService.get<OrderListResponse>(cacheKey);
+      if (cached) {
+        logger.info("Alhomaidhi order list retrieved from cache", {
+          phoneNumber: cleanPhoneNumber,
+          orderCount: Array.isArray(cached.message) ? cached.message.length : 0,
+          fromCache: true,
+        });
+        return cached;
+      }
 
       const response = await this.client.get<OrderListResponse>("/list_orders_temp", {
         params,
@@ -157,11 +174,12 @@ export class AlhomaidhiOrderAPI {
           status: response.data.status,
           message: response.data.message
         });
-        // Return empty array in message field for consistency
-        return {
+        const emptyResult = {
           status: response.data.status,
           message: []
         };
+        await cacheService.set(cacheKey, emptyResult, ORDER_CACHE_TTL);
+        return emptyResult;
       }
 
       // Handle "user not found" response (status APP002 with string message)
@@ -171,11 +189,12 @@ export class AlhomaidhiOrderAPI {
           status: response.data.status,
           message: response.data.message
         });
-        // Return empty array in message field for consistency
-        return {
+        const emptyResult = {
           status: response.data.status,
           message: []
         };
+        await cacheService.set(cacheKey, emptyResult, ORDER_CACHE_TTL);
+        return emptyResult;
       }
 
       logger.info("Alhomaidhi order list retrieved", {
@@ -183,6 +202,9 @@ export class AlhomaidhiOrderAPI {
         orderCount: Array.isArray(response.data.message) ? response.data.message.length : 0,
         status: response.data.status
       });
+
+      // 2. Save to Redis Cache (2 minutes)
+      await cacheService.set(cacheKey, response.data, ORDER_CACHE_TTL);
 
       return response.data;
     } catch (error: any) {
