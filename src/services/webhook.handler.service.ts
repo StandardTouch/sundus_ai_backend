@@ -59,7 +59,7 @@ export class WebhookHandlerService {
   constructor() {
     this.aisensyService = new AISensyService();
     this.processedMessageIds = new Set();
-    
+
     // Initialize handlers
     this.textHandler = new TextMessageHandler();
     this.imageHandler = new ImageMessageHandler();
@@ -67,7 +67,7 @@ export class WebhookHandlerService {
     this.quickReplyHandler = new QuickReplyMessageHandler();
     this.locationHandler = new LocationMessageHandler();
     this.defaultHandler = new DefaultMessageHandler();
-    
+
     // Clean up old message IDs periodically
     setInterval(() => {
       // Clear the set every 5 minutes to prevent memory leak
@@ -83,25 +83,25 @@ export class WebhookHandlerService {
    */
   async processWebhook(payload: WebhookPayload): Promise<ProcessingResult> {
     const tracker = new TimingTracker();
-    
+
     try {
       tracker.addEvent("Webhook received");
-      
+
       const message = payload.data?.message;
-      
+
       if (!message) {
         logger.warn("Webhook received without message data", { payload });
         return tracker.getResult();
       }
 
       const messageId = message.id || payload.id;
-      
+
       // Check for duplicate processing
       if (this.processedMessageIds.has(messageId)) {
         logger.warn("Duplicate webhook detected, skipping", { messageId });
         return tracker.getResult();
       }
-      
+
       // Mark as processed
       this.processedMessageIds.add(messageId);
       tracker.addEvent("Duplicate check passed");
@@ -132,14 +132,14 @@ export class WebhookHandlerService {
       if (ENABLE_INSTANT_ACKNOWLEDGMENT) {
         if (!isSimpleGreeting && !isQuickReply && !isTestMessage) {
           const userLanguage = detectLanguage(incomingText);
-          const processingMsg = userLanguage === 'ar' 
-            ? "جاري معالجة طلبك..." 
+          const processingMsg = userLanguage === 'ar'
+            ? "جاري معالجة طلبك..."
             : "Your request is being processed...";
-          
+
           this.aisensyService.sendTextMessage(phoneNumber, processingMsg).catch(err => {
-            logger.error("Failed to send instant acknowledgment", { 
-              error: err.message, 
-              phoneNumber 
+            logger.error("Failed to send instant acknowledgment", {
+              error: err.message,
+              phoneNumber
             });
           });
         }
@@ -149,7 +149,7 @@ export class WebhookHandlerService {
       let result;
       const normalizedType = (messageType || "").toUpperCase().trim();
       const hasTextContent = !!(message.message_content?.text || message.text || message.message_content?.caption);
-      
+
       switch (normalizedType) {
         case "TEXT":
         case "BUTTON":
@@ -158,16 +158,16 @@ export class WebhookHandlerService {
         case "LIST_REPLY":
           result = await this.textHandler.handle(phoneNumber, message, tracker);
           break;
-        
+
         case "IMAGE":
           result = await this.imageHandler.handle(phoneNumber, message, tracker);
           break;
-        
+
         case "AUDIO":
         case "VOICE":
           result = await this.audioHandler.handle(phoneNumber, message, tracker);
           break;
-        
+
         case "QUICK_REPLY":
           result = await this.quickReplyHandler.handle(phoneNumber, message, tracker);
           break;
@@ -175,7 +175,7 @@ export class WebhookHandlerService {
         case "LOCATION":
           result = await this.locationHandler.handle(phoneNumber, message, tracker);
           break;
-        
+
         default:
           if (hasTextContent) {
             logger.info("Routing unhandled message type with text content to TextMessageHandler", { normalizedType, phoneNumber });
@@ -187,14 +187,14 @@ export class WebhookHandlerService {
       }
 
       tracker.addEvent("Processing complete");
-      
+
       // Send timing breakdown (if enabled or if it's a test message)
       const ENABLE_TIMING_BREAKDOWN = process.env.ENABLE_TIMING_BREAKDOWN === "true" || isTestMessage;
       if (ENABLE_TIMING_BREAKDOWN) {
         const totalSeconds = (result.totalTime / 1000).toFixed(2);
         const timingMessage = `⏱️ Processing Time: ${totalSeconds}s\n${result.breakdown}`;
         const timingResult = await this.aisensyService.sendTextMessage(phoneNumber, timingMessage);
-        
+
         if (timingResult.success) {
           logger.info("Timing message sent successfully", {
             phoneNumber,
@@ -217,7 +217,7 @@ export class WebhookHandlerService {
       const lastAssistantMessage = recentMessages
         .filter(msg => msg.role === 'assistant' && !msg.metadata?.is_feedback_template)
         .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0];
-      
+
       // Check if last message was a "Talk to Human" response - skip feedback template
       if (lastAssistantMessage?.metadata?.is_talk_to_human_response === true) {
         logger.info("Skipping feedback template - last message was 'Talk to Human' response", {
@@ -226,7 +226,7 @@ export class WebhookHandlerService {
         });
         return tracker.getResult();
       }
-      
+
       // Check if last message was a feedback acknowledgment - skip feedback template
       if (lastAssistantMessage?.metadata?.is_feedback_acknowledgment === true) {
         logger.info("Skipping feedback template - last message was feedback acknowledgment", {
@@ -241,7 +241,7 @@ export class WebhookHandlerService {
       const lastFeedbackMessage = recentMessages
         .filter(msg => msg.metadata?.is_feedback_template === true)
         .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0];
-      
+
       if (lastFeedbackMessage && wasFeedbackSentRecently(lastFeedbackMessage.timestamp, 3)) {
         logger.info("Skipping feedback template - feedback sent recently", {
           phoneNumber,
@@ -261,19 +261,19 @@ export class WebhookHandlerService {
         });
         return tracker.getResult();
       }
-      
+
       // All checks passed - send feedback template
       tracker.addEvent("Detecting language for feedback template");
-      
-      const language = lastAssistantMessage 
+
+      const language = lastAssistantMessage
         ? detectLanguage(lastAssistantMessage.content)
         : 'en'; // Default to English
-      
-      const templateName = language === 'ar' 
+
+      const templateName = language === 'ar'
         ? "message_feedback_arabic"
         : "message_feedback_english";
       const languageCode = language === 'ar' ? "ar" : "en_us";
-      
+
       tracker.addEvent(`Sending campaign feedback template (${language})`);
       logger.info("Sending feedback template ONLY (no text message before template)", {
         phoneNumber,
@@ -281,7 +281,7 @@ export class WebhookHandlerService {
         languageCode,
         language
       });
-      
+
       // IMPORTANT: Send ONLY the template message - NO text message before it
       // The template itself contains the body text and buttons
       const campaignResult = await this.aisensyService.sendTemplateMessage(
@@ -304,7 +304,7 @@ export class WebhookHandlerService {
             language: language
           }
         );
-        
+
         logger.info("Campaign feedback template sent and stored", {
           phoneNumber,
           messageId: campaignResult.message_id,
@@ -318,7 +318,7 @@ export class WebhookHandlerService {
           template: templateName
         });
       }
-      
+
       logger.info("Webhook processing completed", {
         messageId,
         phoneNumber,
