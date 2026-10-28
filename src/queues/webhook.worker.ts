@@ -48,6 +48,8 @@ export function initWebhookWorker(): Worker | null {
     {
       connection: redisConnectionOptions,
       concurrency: 5, // Process up to 5 webhooks concurrently
+      stalledInterval: 300000, // 5 minutes (prevents excessive polling on serverless Redis like Upstash)
+      drainDelay: 30, // 30 seconds when queue is empty
     }
   );
 

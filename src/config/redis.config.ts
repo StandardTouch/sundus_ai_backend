@@ -10,22 +10,32 @@ import { logger } from "../utils/logger.js";
 
 dotenv.config();
 
+const redisUrl = process.env.REDIS_URL;
+const isTls =
+  (redisUrl && redisUrl.startsWith("rediss://")) ||
+  process.env.REDIS_TLS === "true" ||
+  process.env.REDIS_PORT === "6380";
+
 export const redisConfig = {
   host: process.env.REDIS_HOST || "127.0.0.1",
   port: parseInt(process.env.REDIS_PORT || "6379", 10),
   password: process.env.REDIS_PASSWORD || undefined,
-  url: process.env.REDIS_URL || undefined,
+  url: redisUrl || undefined,
+  tls: isTls,
   enabled: process.env.REDIS_ENABLED !== "false",
 };
 
 /**
  * Standard Redis Connection Options for BullMQ & ioredis
+ * Supports Upstash (rediss:// with TLS) and local Redis (redis://)
  */
 export const redisConnectionOptions: RedisOptions = redisConfig.url
   ? {
       host: new URL(redisConfig.url).hostname || redisConfig.host,
       port: parseInt(new URL(redisConfig.url).port || "6379", 10),
+      username: new URL(redisConfig.url).username || undefined,
       password: new URL(redisConfig.url).password || redisConfig.password,
+      tls: isTls ? {} : undefined,
       maxRetriesPerRequest: null, // Required by BullMQ
       enableReadyCheck: false,
     }
@@ -33,6 +43,7 @@ export const redisConnectionOptions: RedisOptions = redisConfig.url
       host: redisConfig.host,
       port: redisConfig.port,
       password: redisConfig.password,
+      tls: isTls ? {} : undefined,
       maxRetriesPerRequest: null, // Required by BullMQ
       enableReadyCheck: false,
     };
