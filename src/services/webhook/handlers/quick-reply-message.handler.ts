@@ -225,7 +225,13 @@ export class QuickReplyMessageHandler extends BaseMessageHandler {
     }
 
     // If not feedback, process normally with OpenAI (or handle other quick replies)
-    tracker.addEvent("Processing as regular quick reply");
+    // If not feedback, delegate to Guided Flow Router
+    tracker.addEvent("Delegating to guided flow router");
+    const { flowRouter } = await import("../../../flows/index.js");
+    const flowResult = await flowRouter.handleIncoming(phoneNumber, message);
+    if (flowResult.handled) {
+      return tracker.getResult();
+    }
     const isAr = callbackPayload ? detectLanguage(callbackPayload) === "ar" : false;
     const responseText = isAr ? "شكراً لك على إجابتك!" : "Thank you for your response!";
     

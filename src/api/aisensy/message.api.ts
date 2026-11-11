@@ -69,12 +69,12 @@ export class AISensyMessageAPI {
    * @returns Normalized AI Sensy API response
    */
   async sendMessage(message: MessageRequest): Promise<AISensyResponse> {
+    let requestPayload: any = message;
     try {
       const endpoint = this.getEndpoint();
       
       // For template messages, don't include recipient_type (not in API docs)
       // For other messages, include recipient_type
-      let requestPayload: any;
       if (message.type === "template") {
         // Template messages don't have recipient_type
         requestPayload = { ...message };
@@ -88,6 +88,13 @@ export class AISensyMessageAPI {
       // Log request for debugging (especially for templates and text messages)
       if (message.type === "template") {
         logger.info("Sending template message", { payload: requestPayload });
+      } else if (message.type === "interactive") {
+        logger.info("Sending interactive message", {
+          to: requestPayload.to,
+          interactiveType: (requestPayload as any).interactive?.type,
+          bodyLength: (requestPayload as any).interactive?.body?.text?.length,
+          fullPayload: JSON.stringify(requestPayload),
+        });
       } else if (message.type === "text") {
         const textBody = (requestPayload.text as any)?.body || "";
         logger.info("Sending text message", { 
@@ -149,6 +156,11 @@ export class AISensyMessageAPI {
         status: response.status,
       };
     } catch (error: any) {
+      logger.error("AiSensy API error sending message", {
+        error: error.response?.data || error.message,
+        status: error.response?.status,
+        payload: requestPayload,
+      });
       return {
         success: false,
         error: error.response?.data?.message || error.response?.data?.error || error.message || "Unknown error",
@@ -259,6 +271,35 @@ export class AISensyMessageAPI {
         },
       },
     });
+  }
+
+  /**
+   * Send interactive list menu (drawer menu with up to 10 options)
+   */
+  async sendListMenu(
+    phoneNumber: string,
+    bodyText: string,
+    buttonTitle: string,
+    sections: Array<{
+      title: string;
+      rows: Array<{ id: string; title: string; description?: string }>;
+    }>
+  ): Promise<AISensyResponse> {
+    return this.sendMessage({
+      to: phoneNumber,
+      type: "interactive",
+      recipient_type: "individual",
+      interactive: {
+        type: "list",
+        body: {
+          text: bodyText,
+        },
+        action: {
+          button: buttonTitle,
+          sections,
+        },
+      },
+    } as any);
   }
 
   /**

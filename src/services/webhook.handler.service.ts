@@ -18,6 +18,7 @@ import {
   DefaultMessageHandler
 } from "./webhook/handlers/index.js";
 import type { ProcessingResult } from "../utils/timing.util.js";
+import { flowRouter, flowSessionService } from "../flows/index.js";
 
 /**
  * Webhook payload structure from AI Sensy
@@ -127,6 +128,17 @@ export class WebhookHandlerService {
       const isQuickReply = messageType === "QUICK_REPLY";
       const isTestMessage = normalizedIncoming === "test" || normalizedIncoming === "testing" || normalizedIncoming.startsWith("test ") || normalizedIncoming.startsWith("testing ");
 
+      // Guided Flow Engine (Amazon-style options flow)
+      const ENABLE_GUIDED_FLOW = process.env.ENABLE_GUIDED_FLOW !== "false";
+      if (ENABLE_GUIDED_FLOW) {
+        tracker.addEvent("Guided flow routing started");
+        const flowResult = await flowRouter.handleIncoming(phoneNumber, message);
+        if (flowResult.handled) {
+          tracker.addEvent("Guided flow completed");
+          return tracker.getResult();
+        }
+      }
+
       // Instant acknowledgment (enabled by default)
       const ENABLE_INSTANT_ACKNOWLEDGMENT = process.env.ENABLE_INSTANT_ACKNOWLEDGMENT !== "false";
       if (ENABLE_INSTANT_ACKNOWLEDGMENT) {
@@ -210,112 +222,31 @@ export class WebhookHandlerService {
         logger.debug("Timing breakdown message disabled", { phoneNumber });
       }
 
-      // Check if feedback template should be sent
-      // Only send when task is completed or cannot help (not after every message)
-      tracker.addEvent("Checking if feedback template should be sent");
-      const recentMessages = await conversationService.getRecentMessages(phoneNumber, 5);
-      const lastAssistantMessage = recentMessages
-        .filter(msg => msg.role === 'assistant' && !msg.metadata?.is_feedback_template)
-        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0];
+      // Option 1: Send Main Menu navigation button after AI response
+      try {
+        const session = await flowSessionService.getSession(phoneNumber);
+        const userLanguage = session?.language || (detectLanguage(incomingText) === 'ar' ? 'ar' : 'en');
+        const isAr = userLanguage === 'ar';
 
-      // Check if last message was a "Talk to Human" response - skip feedback template
-      if (lastAssistantMessage?.metadata?.is_talk_to_human_response === true) {
-        logger.info("Skipping feedback template - last message was 'Talk to Human' response", {
-          phoneNumber,
-          lastMessageId: lastAssistantMessage.message_id
-        });
-        return tracker.getResult();
-      }
+        const menuPrompt = isAr
+          ? "هل تحتاج إلى أي مساعدة أخرى؟ يمكنك العودة إلى القائمة الرئيسية في أي وقت:"
+          : "Need anything else? You can return to the main menu at any time:";
 
-      // Check if last message was a feedback acknowledgment - skip feedback template
-      if (lastAssistantMessage?.metadata?.is_feedback_acknowledgment === true) {
-        logger.info("Skipping feedback template - last message was feedback acknowledgment", {
-          phoneNumber,
-          lastMessageId: lastAssistantMessage.message_id
-        });
-        return tracker.getResult();
-      }
-
-      // Check if feedback was sent recently (within last 3 minutes) - prevent spam
-      const { wasFeedbackSentRecently } = await import("../utils/feedback-detection.util.js");
-      const lastFeedbackMessage = recentMessages
-        .filter(msg => msg.metadata?.is_feedback_template === true)
-        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0];
-
-      if (lastFeedbackMessage && wasFeedbackSentRecently(lastFeedbackMessage.timestamp, 3)) {
-        logger.info("Skipping feedback template - feedback sent recently", {
-          phoneNumber,
-          lastFeedbackTimestamp: lastFeedbackMessage.timestamp,
-          minutesAgo: (Date.now() - lastFeedbackMessage.timestamp.getTime()) / (1000 * 60)
-        });
-        return tracker.getResult();
-      }
-
-      // Check if last assistant message has should_send_feedback flag
-      // This flag is set by tool results or AI response analysis
-      if (lastAssistantMessage?.metadata?.should_send_feedback !== true) {
-        logger.info("Skipping feedback template - no feedback flag set (conversation still active)", {
-          phoneNumber,
-          lastMessageId: lastAssistantMessage?.message_id,
-          hasFlag: !!lastAssistantMessage?.metadata?.should_send_feedback
-        });
-        return tracker.getResult();
-      }
-
-      // All checks passed - send feedback template
-      tracker.addEvent("Detecting language for feedback template");
-
-      const language = lastAssistantMessage
-        ? detectLanguage(lastAssistantMessage.content)
-        : 'en'; // Default to English
-
-      const templateName = language === 'ar'
-        ? "message_feedback_arabic"
-        : "message_feedback_english";
-      const languageCode = language === 'ar' ? "ar" : "en_us";
-
-      tracker.addEvent(`Sending campaign feedback template (${language})`);
-      logger.info("Sending feedback template ONLY (no text message before template)", {
-        phoneNumber,
-        templateName,
-        languageCode,
-        language
-      });
-
-      // IMPORTANT: Send ONLY the template message - NO text message before it
-      // The template itself contains the body text and buttons
-      const campaignResult = await this.aisensyService.sendTemplateMessage(
-        phoneNumber,
-        templateName,
-        languageCode
-        // No components needed - template body and buttons are configured in AISensy
-      );
-
-      if (campaignResult.success && campaignResult.message_id) {
-        // Store the template message in conversation_messages with metadata
-        // so we can identify it when user replies
-        await conversationService.storeAssistantMessage(
-          phoneNumber,
-          campaignResult.message_id,
-          "Feedback request template",
+        const menuButtons = [
           {
-            template_name: templateName,
-            is_feedback_template: true,
-            language: language
-          }
-        );
+            text: isAr ? "🏠 القائمة الرئيسية" : "🏠 Main Menu",
+            payload: "menu_main",
+          },
+        ];
 
-        logger.info("Campaign feedback template sent and stored", {
+        // Brief delay (500ms) to ensure AI response text message renders first
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        await this.aisensyService.sendQuickReplyMessage(phoneNumber, menuPrompt, menuButtons);
+        logger.info("Sent post-AI Main Menu navigation button", { phoneNumber, language: userLanguage });
+      } catch (err: any) {
+        logger.error("Failed to send post-AI Main Menu navigation button", {
           phoneNumber,
-          messageId: campaignResult.message_id,
-          template: templateName,
-          language
-        });
-      } else {
-        logger.error("Failed to send campaign feedback template", {
-          phoneNumber,
-          error: campaignResult.error,
-          template: templateName
+          error: err.message,
         });
       }
 

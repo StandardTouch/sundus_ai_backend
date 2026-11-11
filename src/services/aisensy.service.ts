@@ -130,6 +130,21 @@ export class AISensyService {
   }
 
   /**
+   * Send interactive list menu
+   */
+  async sendListMenu(
+    phoneNumber: PhoneNumber,
+    text: string,
+    buttonTitle: string,
+    sections: Array<{
+      title: string;
+      rows: Array<{ id: string; title: string; description?: string }>;
+    }>
+  ): Promise<AISensyResponse> {
+    return this.api.sendListMenu(phoneNumber, text, buttonTitle, sections);
+  }
+
+  /**
    * Send OTP message
    * Used during order tracking authentication
    */
