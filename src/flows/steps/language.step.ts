@@ -5,6 +5,7 @@
 
 import { AISensyService } from "../../services/aisensy.service.js";
 import { flowSessionService } from "../flow-session.service.js";
+import { mainMenuStep } from "./main-menu.step.js";
 import { logger } from "../../utils/logger.js";
 import type { FlowAction, FlowStepResult, SupportedLanguage } from "../flow.types.js";
 
@@ -20,14 +21,14 @@ export class LanguageStep {
    */
   async sendPrompt(phoneNumber: string): Promise<FlowStepResult> {
     const greetingText =
-      `مرحباً بك في مجموعة الحميضي للساعات! 👋\n` +
-      `يرجى اختيار لغتك المفضلة للمتابعة:\n\n` +
-      `Welcome to AlHomaidhi Watches! 👋\n` +
+      `مرحباً بكم في الحميضي للساعات.\n` +
+      `يرجى اختيار لغتكم المفضلة للمتابعة:\n\n` +
+      `Welcome to AlHomaidhi Watches.\n` +
       `Please select your preferred language to continue:`;
 
     const buttons = [
-      { text: "English 🇬🇧", payload: "lang_en" },
-      { text: "العربية 🇸🇦", payload: "lang_ar" },
+      { text: "English", payload: "lang_en" },
+      { text: "العربية", payload: "lang_ar" },
     ];
 
     try {
@@ -78,51 +79,36 @@ export class LanguageStep {
       rawText === "english" ||
       rawText === "en" ||
       rawText === "1" ||
-      payload.includes("english")
+      rawText.includes("english")
     ) {
       selectedLanguage = "en";
     }
+
     // Check for Arabic selection
-    else if (
+    if (
       payload === "lang_ar" ||
       rawText === "arabic" ||
       rawText === "ar" ||
       rawText === "2" ||
-      rawText === "عربي" ||
-      rawText === "العربية" ||
-      payload.includes("arabic") ||
-      payload.includes("العربية")
+      rawText.includes("عربي") ||
+      rawText.includes("العربية")
     ) {
       selectedLanguage = "ar";
     }
 
     if (!selectedLanguage) {
-      // Input wasn't recognized, re-prompt with buttons
-      logger.info("[Flow:LanguageStep] Unrecognized input, re-sending language prompt", {
-        phoneNumber,
-        payload,
-        rawText,
-      });
+      logger.warn("[Flow:LanguageStep] Unrecognized language choice, re-prompting", { phoneNumber, payload, rawText });
       return this.sendPrompt(phoneNumber);
     }
 
-    // Save language to user session
+    logger.info("[Flow:LanguageStep] Language selected", { phoneNumber, language: selectedLanguage });
+
+    // Update user session in Redis
     await flowSessionService.updateLanguage(phoneNumber, selectedLanguage, "MAIN_MENU");
-    logger.info("[Flow:LanguageStep] User selected language", { phoneNumber, selectedLanguage });
 
-    // Send confirmation in the chosen language
-    const confirmationMessage =
-      selectedLanguage === "ar"
-        ? "أهلاً بك! تم اختيار اللغة العربية 🇸🇦."
-        : "Awesome! You have selected English 🇬🇧.";
-
-    await this.aisensyService.sendTextMessage(phoneNumber, confirmationMessage);
-
-    // Immediately present the Main Menu
-    const { mainMenuStep } = await import("./main-menu.step.js");
+    // Immediately route to Main Menu in the chosen language
     return mainMenuStep.sendMenu(phoneNumber, selectedLanguage);
   }
 }
 
 export const languageStep = new LanguageStep();
-

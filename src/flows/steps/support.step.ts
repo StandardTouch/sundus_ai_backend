@@ -1,11 +1,12 @@
 /**
  * Customer Support Step
- * Provides contact hotline, hours of operation, and a return button to the Main Menu.
+ * Provides toll-free support hotline, operating hours, email,
+ * and an interactive button to return to the Main Menu.
  */
 
 import { AISensyService } from "../../services/aisensy.service.js";
-import { supportSettingsService } from "../../services/support-settings.service.js";
 import { flowSessionService } from "../flow-session.service.js";
+import { supportSettingsService } from "../../services/support-settings.service.js";
 import { logger } from "../../utils/logger.js";
 import type { FlowStepResult, SupportedLanguage } from "../flow.types.js";
 
@@ -26,24 +27,22 @@ export class SupportStep {
       const supportPhone = await supportSettingsService.getSupportPhoneNumber();
 
       const supportText = isAr
-        ? `👨‍💼 *خدمة عملاء مجموعة الحميضي للساعات:*\n\n` +
-        `يسعدنا ويشرفنا خدمتك والإجابة على كافة استفساراتك.\n\n` +
-        `📞 *الرقم الموحد المجاني:* ${supportPhone}\n` +
-        `⏰ *ساعات العمل:* من السبت إلى الخميس (9:00 ص - 10:00 م)\n` +
-        `💬 *البريد الإلكتروني:* support@alhomaidhigroup.com\n` +
-        `🌐 *الموقع الإلكتروني:* https://alhomaidhigroup.com\n\n` +
-        `_سيقوم أحد ممثلي الخدمة بالتواصل معك ومساعدتك في أقرب وقت._`
-        : `👨‍💼 *AlHomaidhi Customer Care:*\n\n` +
-        `We're here to help you with watch inquiries, orders, and warranty services.\n\n` +
-        `📞 *Toll-Free Hotline:* ${supportPhone}\n` +
-        `⏰ *Operating Hours:* Saturday - Thursday (9:00 AM - 10:00 PM)\n` +
-        `💬 *Email:* support@alhomaidhigroup.com\n` +
-        `🌐 *Website:* https://alhomaidhigroup.com\n\n` +
-        `_A customer care representative will be happy to assist you._`;
+        ? `*خدمة عملاء الحميضي للساعات*\n\n` +
+          `يسعد فريق خدمة العملاء تقديم المساعدة بخصوص المنتجات، الطلبات، وخدمات الضمان.\n\n` +
+          `*الرقم الموحد:* ${supportPhone}\n` +
+          `*ساعات العمل:* من السبت إلى الخميس (9:00 ص - 10:00 م)\n` +
+          `*البريد الإلكتروني:* support@alhomaidhigroup.com\n` +
+          `*الموقع الإلكتروني:* https://alhomaidhigroup.com`
+        : `*AlHomaidhi Customer Support*\n\n` +
+          `Our customer care team is available to assist with inquiries, orders, and warranty services.\n\n` +
+          `*Toll-Free Hotline:* ${supportPhone}\n` +
+          `*Operating Hours:* Saturday - Thursday (9:00 AM - 10:00 PM)\n` +
+          `*Email:* support@alhomaidhigroup.com\n` +
+          `*Website:* https://alhomaidhigroup.com`;
 
       const buttons = [
         {
-          text: isAr ? "🏠 القائمة الرئيسية" : "🏠 Main Menu",
+          text: isAr ? "القائمة الرئيسية" : "Main Menu",
           payload: "menu_main",
         },
       ];
@@ -61,17 +60,18 @@ export class SupportStep {
       logger.error("[Flow:SupportStep] Error sending support details", { error: error.message, phoneNumber });
 
       const fallbackText = isAr
-        ? "📞 يمكنك الاتصال بنا مباشرة على الرقم الموحد: 920009339"
-        : "📞 You can reach our support hotline directly at: 920009339";
+        ? "الرقم الموحد لخدمة العملاء: 920009339"
+        : "Customer support hotline: 920009339";
 
       await this.aisensyService.sendQuickReplyMessage(phoneNumber, fallbackText, [
-        { text: isAr ? "🏠 القائمة الرئيسية" : "🏠 Main Menu", payload: "menu_main" },
+        { text: isAr ? "القائمة الرئيسية" : "Main Menu", payload: "menu_main" },
       ]);
 
       return {
         success: false,
         handled: true,
         messageSent: true,
+        nextStep: "HUMAN_SUPPORT",
         error: error.message,
       };
     }
@@ -79,4 +79,3 @@ export class SupportStep {
 }
 
 export const supportStep = new SupportStep();
-

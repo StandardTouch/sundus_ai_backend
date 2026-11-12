@@ -1,10 +1,10 @@
 /**
  * Main Menu Step
  * Presents the 4 main options via an interactive WhatsApp List Menu:
- * 1. 📦 Track My Orders
- * 2. ⌚ Browse Watches
- * 3. 📍 Store Locations
- * 4. 👨‍💼 Customer Support / Agent
+ * 1. Track My Orders
+ * 2. Browse Watches
+ * 3. Store Locations
+ * 4. Customer Support
  */
 
 import { AISensyService } from "../../services/aisensy.service.js";
@@ -30,55 +30,55 @@ export class MainMenuStep {
     const isAr = language === "ar";
 
     const bodyText = isAr
-      ? "كيف يمكننا مساعدتك اليوم؟ يسعدنا ويشرفنا خدمتك.\nيرجى الضغط على الزر أدناه لاختيار الخدمة المطلوبة:"
-      : "How can we assist you today? We're glad to help.\nPlease tap the button below to choose an option:";
+      ? "أهلاً بكم في الحميضي للساعات. يرجى اختيار الخدمة المطلوبة للمتابعة:"
+      : "Welcome to AlHomaidhi Watches. Please select an option below to proceed:";
 
-    const buttonTitle = isAr ? "عرض الخيارات 📋" : "View Options 📋";
+    const buttonTitle = isAr ? "عرض الخيارات" : "View Options";
     const sectionTitle = isAr ? "الخدمات الرئيسية" : "Main Services";
 
     const rows = isAr
       ? [
           {
             id: "menu_track_order",
-            title: "📦 تتبع طلباتي",
+            title: "تتبع الطلبات",
             description: "متابعة حالة الشحن وموعد التوصيل",
           },
           {
             id: "menu_browse_catalog",
-            title: "⌚ تصفح الساعات",
-            description: "استعراض أفضل الماركات والموديلات",
+            title: "تصفح الساعات",
+            description: "استعراض الماركات والموديلات",
           },
           {
             id: "menu_store_locations",
-            title: "📍 فروعنا ومعارضنا",
+            title: "فروعنا ومعارضنا",
             description: "مواقع المعارض وأوقات العمل",
           },
           {
             id: "menu_support",
-            title: "👨‍💼 خدمة العملاء",
-            description: "التحدث مع أحد ممثلي الخدمة",
+            title: "خدمة العملاء",
+            description: "التواصل مع ممثل خدمة العملاء",
           },
         ]
       : [
           {
             id: "menu_track_order",
-            title: "📦 Track My Orders",
-            description: "Check status & delivery updates",
+            title: "Track My Orders",
+            description: "Status and delivery updates",
           },
           {
             id: "menu_browse_catalog",
-            title: "⌚ Browse Watches",
-            description: "Explore top brands & bestsellers",
+            title: "Browse Watches",
+            description: "Top brands and collections",
           },
           {
             id: "menu_store_locations",
-            title: "📍 Store Locations",
-            description: "Find nearest store & opening hours",
+            title: "Store Locations",
+            description: "Branch addresses and hours",
           },
           {
             id: "menu_support",
-            title: "👨‍💼 Customer Support",
-            description: "Speak to a human representative",
+            title: "Customer Support",
+            description: "Speak with a representative",
           },
         ];
 
@@ -136,22 +136,51 @@ export class MainMenuStep {
     }
 
     // 1. Order Tracking
-    if (payload === "menu_track_order" || rawText.includes("track") || rawText.includes("تتبع")) {
+    if (
+      payload === "menu_track_order" ||
+      payload.includes("track") ||
+      rawText.includes("track") ||
+      rawText.includes("تتبع") ||
+      rawText === "1"
+    ) {
       return orderTrackingStep.sendOrderTracking(phoneNumber, language);
     }
 
     // 2. Browse Catalog
-    if (payload === "menu_browse_catalog" || rawText.includes("browse") || rawText.includes("ساعات") || rawText.includes("تصفح")) {
+    if (
+      payload === "menu_browse_catalog" ||
+      payload.includes("browse") ||
+      rawText.includes("browse") ||
+      rawText.includes("ساعات") ||
+      rawText.includes("تصفح") ||
+      rawText === "2"
+    ) {
       return browseWatchesStep.sendBrandList(phoneNumber, language);
     }
 
     // 3. Store Locations
-    if (payload === "menu_store_locations" || rawText.includes("location") || rawText.includes("فروع") || rawText.includes("موقع")) {
+    if (
+      payload === "menu_store_locations" ||
+      payload.includes("location") ||
+      rawText.includes("location") ||
+      rawText.includes("store") ||
+      rawText.includes("فروع") ||
+      rawText.includes("معارض") ||
+      rawText === "3"
+    ) {
       return locationsStep.sendLocations(phoneNumber, language);
     }
 
     // 4. Customer Support
-    if (payload === "menu_support" || rawText.includes("support") || rawText.includes("agent") || rawText.includes("خدمة") || rawText.includes("عملاء")) {
+    if (
+      payload === "menu_support" ||
+      payload.includes("support") ||
+      rawText.includes("support") ||
+      rawText.includes("agent") ||
+      rawText.includes("خدمة") ||
+      rawText.includes("عملاء") ||
+      rawText === "4"
+    ) {
       return supportStep.sendSupport(phoneNumber, language);
     }
 

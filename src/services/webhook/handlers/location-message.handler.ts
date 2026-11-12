@@ -80,8 +80,8 @@ export class LocationMessageHandler extends BaseMessageHandler {
 
     const header =
       lang === "ar"
-        ? `📍 هذه هي فروعنا مرتبة من الأقرب إلى الأبعد:\n(تم الترتيب بناءً على موقعك)`
-        : `📍 Here are our branches sorted from nearest to farthest:\n(based on your shared location)`;
+        ? `معارضنا الأقرب إلى موقعكم:`
+        : `Our nearest showrooms based on your location:`;
 
     await this.sendMessage(phoneNumber, header, tracker);
 
@@ -98,16 +98,16 @@ export class LocationMessageHandler extends BaseMessageHandler {
 
           const phones =
             lang === "ar"
-              ? `📞 هاتف الفرع: ${loc.store_contact_phone || "غير متوفر"}\n👤 مدير الفرع: ${loc.store_manager_name || "غير متوفر"} (${loc.store_manager_phone || "غير متوفر"})`
-              : `📞 Branch: ${loc.store_contact_phone || "N/A"}\n👤 Manager: ${loc.store_manager_name || "N/A"} (${loc.store_manager_phone || "N/A"})`;
+              ? `هاتف الفرع: ${loc.store_contact_phone || "غير متوفر"}\nمدير الفرع: ${loc.store_manager_name || "غير متوفر"} (${loc.store_manager_phone || "غير متوفر"})`
+              : `Branch: ${loc.store_contact_phone || "N/A"}\nManager: ${loc.store_manager_name || "N/A"} (${loc.store_manager_phone || "N/A"})`;
 
           return [
-            `📍 *${title}*${km ? (lang === "ar" ? `\n📏 ${km} كم` : `\n📏 ${km} km`) : ""}`,
-            city ? (lang === "ar" ? `🏙️ المدينة: ${city}` : `🏙️ City: ${city}`) : "",
-            addr ? `🏠 ${addr}` : "",
+            `*${title}*${km ? (lang === "ar" ? `\nالمسافة: ${km} كم` : `\nDistance: ${km} km`) : ""}`,
+            city ? (lang === "ar" ? `المدينة: ${city}` : `City: ${city}`) : "",
+            addr ? `العنوان: ${addr}` : "",
             formatToday(loc.today, lang),
             phones,
-            `🔗 Google Maps: ${mapsUrl}`,
+            `Google Maps: ${mapsUrl}`,
           ]
             .filter(Boolean)
             .join("\n");

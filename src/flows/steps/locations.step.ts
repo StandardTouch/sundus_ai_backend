@@ -50,8 +50,8 @@ export class LocationsStep {
 
       if (locations && locations.length > 0) {
         const header = isAr
-          ? "📍 *أبرز فروع ومعارض الحميضي للساعات:*\n\n"
-          : "📍 *Featured AlHomaidhi Watch Showrooms:*\n\n";
+          ? "*معارض وفروع الحميضي للساعات:*\n\n"
+          : "*AlHomaidhi Watch Showrooms:*\n\n";
 
         const locationList = locations
           .map((loc: any, idx: number) => {
@@ -60,41 +60,39 @@ export class LocationsStep {
             const phone = loc.store_contact_phone || loc.store_manager_phone || "920009339";
             const mapLink =
               loc.location_latitude && loc.location_longitude
-                ? `https://maps.google.com/?q=${loc.location_latitude},${loc.location_longitude}`
+                ? `https://maps.google.com/?q=${Number(loc.location_latitude).toFixed(5)},${Number(loc.location_longitude).toFixed(5)}`
                 : undefined;
 
             return (
               `*${idx + 1}. ${title}*\n` +
-              `🏢 ${isAr ? "العنوان:" : "Address:"} ${address || (isAr ? "المملكة العربية السعودية" : "Saudi Arabia")}\n` +
-              `📞 ${isAr ? "الهاتف:" : "Phone:"} ${phone}` +
-              (mapLink ? `\n🗺️ ${isAr ? "الموقع على الخريطة:" : "Google Maps:"} ${mapLink}` : "")
+              `${isAr ? "العنوان:" : "Address:"} ${address || (isAr ? "المملكة العربية السعودية" : "Saudi Arabia")}\n` +
+              `${isAr ? "الهاتف:" : "Phone:"} ${phone}` +
+              (mapLink ? `\n${isAr ? "الموقع على الخريطة:" : "Location Map:"} ${mapLink}` : "")
             );
           })
           .join("\n\n");
 
         const footer = isAr
-          ? `\n\n🌐 *هل تبحث عن فروع أخرى؟*\n` +
-            `يمكنك استعراض مواقع جميع فروعنا ومعارضنا في أنحاء المملكة عبر الرابط:\n` +
+          ? `\n\n*جميع الفروع ومراكز الخدمة:*\n` +
             `https://alhomaidhigroup.com/our-branches`
-          : `\n\n🌐 *Looking for more branches?*\n` +
-            `Find all 50+ stores and service centers across Saudi Arabia here:\n` +
+          : `\n\n*All Showrooms & Service Centers:*\n` +
             `https://alhomaidhigroup.com/our-branches`;
 
         locationText = header + locationList + footer;
       } else {
         // Fallback store information if no locations in DB
         locationText = isAr
-          ? `📍 *فروع ومعارض الحميضي للساعات:*\n\n` +
+          ? `*معارض وفروع الحميضي للساعات:*\n\n` +
             `1. *معرض الرياض الرئيسي* - طريق الملك فهد، العليا\n` +
             `2. *معرض جدة* - التحلية، طريق الأمير محمد بن عبدالعزيز\n` +
             `3. *معرض الدمام* - طريق الخليج، الشاطئ الغربي\n\n` +
-            `🌐 *لاستعراض كافة الفروع وأوقات العمل:*\n` +
+            `*جميع الفروع ومواعيد العمل:*\n` +
             `https://alhomaidhigroup.com/our-branches`
-          : `📍 *AlHomaidhi Watch Showrooms:*\n\n` +
+          : `*AlHomaidhi Watch Showrooms:*\n\n` +
             `1. *Riyadh Flagship* - King Fahd Rd, Al Olaya\n` +
             `2. *Jeddah Showroom* - Tahlia St, Prince Mohammed Bin Abdulaziz Rd\n` +
             `3. *Dammam Branch* - Gulf Rd, West Shatee\n\n` +
-            `🌐 *To view all branches and opening hours:*\n` +
+            `*All Showrooms & Opening Hours:*\n` +
             `https://alhomaidhigroup.com/our-branches`;
       }
 
@@ -111,12 +109,12 @@ export class LocationsStep {
 
       // 2. Send the Main Menu button as a compact interactive message (<1024 chars)
       const promptText = isAr
-        ? "للمزيد من الخيارات يمكنك العودة إلى القائمة الرئيسية في أي وقت:"
+        ? "يمكنكم العودة إلى القائمة الرئيسية في أي وقت:"
         : "You can return to the main menu at any time:";
 
       const buttons = [
         {
-          text: isAr ? "🏠 القائمة الرئيسية" : "🏠 Main Menu",
+          text: isAr ? "القائمة الرئيسية" : "Main Menu",
           payload: "menu_main",
         },
       ];
@@ -140,17 +138,18 @@ export class LocationsStep {
       logger.error("[Flow:LocationsStep] Error fetching locations", { error: error.message, phoneNumber });
 
       const fallbackText = isAr
-        ? "يمكنك زيارة موقعنا لمعرفة أقرب فرع إليك:\nhttps://alhomaidhigroup.com/our-branches"
-        : "You can visit our store locator to find your nearest showroom:\nhttps://alhomaidhigroup.com/our-branches";
+        ? "فروع ومعارض الحميضي:\nhttps://alhomaidhigroup.com/our-branches"
+        : "AlHomaidhi Showrooms:\nhttps://alhomaidhigroup.com/our-branches";
 
       await this.aisensyService.sendQuickReplyMessage(phoneNumber, fallbackText, [
-        { text: isAr ? "🏠 القائمة الرئيسية" : "🏠 Main Menu", payload: "menu_main" },
+        { text: isAr ? "القائمة الرئيسية" : "Main Menu", payload: "menu_main" },
       ]);
 
       return {
         success: false,
         handled: true,
         messageSent: true,
+        nextStep: "STORE_LOCATIONS" as any,
         error: error.message,
       };
     }

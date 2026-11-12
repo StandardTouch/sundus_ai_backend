@@ -74,15 +74,15 @@ export class BrowseWatchesStep {
       // Add "Back to Main Menu" as the 10th option
       brandRows.push({
         id: "menu_main",
-        title: isAr ? "🏠 القائمة الرئيسية" : "🏠 Main Menu",
+        title: isAr ? "القائمة الرئيسية" : "Main Menu",
         description: isAr ? "العودة للخيارات السابقة" : "Return to previous options",
       });
 
       const bodyText = isAr
-        ? "⌚ تفضل باختيار إحدى الماركات العالمية المفضلة لديك لعرض الساعات المتاحة:"
-        : "⌚ Please select a brand below to explore our exclusive watch collections:";
+        ? "يرجى اختيار الماركة المطلوبة لعرض التشكيلات المتاحة:"
+        : "Please select a brand below to explore available watch collections:";
 
-      const buttonTitle = isAr ? "اختر الماركة ⌚" : "Select Brand ⌚";
+      const buttonTitle = isAr ? "اختيار الماركة" : "Select Brand";
       const sectionTitle = isAr ? "الماركات المتاحة" : "Available Brands";
 
       await this.aisensyService.sendListMenu(phoneNumber, bodyText, buttonTitle, [
@@ -108,13 +108,14 @@ export class BrowseWatchesStep {
         : "Unable to load brands at the moment. Please try again in a few moments.";
 
       await this.aisensyService.sendQuickReplyMessage(phoneNumber, errorText, [
-        { text: isAr ? "🏠 القائمة الرئيسية" : "🏠 Main Menu", payload: "menu_main" },
+        { text: isAr ? "القائمة الرئيسية" : "Main Menu", payload: "menu_main" },
       ]);
 
       return {
         success: false,
         handled: true,
         messageSent: true,
+        nextStep: "BROWSE_CATALOG",
         error: error.message,
       };
     }
@@ -179,8 +180,8 @@ export class BrowseWatchesStep {
           : `Sorry, we could not find available watches for ${displayBrandName} right now.`;
 
         await this.aisensyService.sendQuickReplyMessage(phoneNumber, notFoundText, [
-          { text: isAr ? "⌚ ماركات أخرى" : "⌚ Other Brands", payload: "menu_browse_catalog" },
-          { text: isAr ? "🏠 القائمة الرئيسية" : "🏠 Main Menu", payload: "menu_main" },
+          { text: isAr ? "ماركات أخرى" : "Other Brands", payload: "menu_browse_catalog" },
+          { text: isAr ? "القائمة الرئيسية" : "Main Menu", payload: "menu_main" },
         ]);
 
         return { success: true, handled: true, messageSent: true };
@@ -188,8 +189,8 @@ export class BrowseWatchesStep {
 
       // 3. Introductory message
       const introText = isAr
-        ? `✨ إليك أبرز ساعات *${displayBrandName}* المتوفرة لدينا:`
-        : `✨ Here are the top available watches from *${displayBrandName}*:`;
+        ? `التشكيلات المتوفرة من *${displayBrandName}*:`
+        : `Available watches from *${displayBrandName}*:`;
 
       await this.aisensyService.sendTextMessage(phoneNumber, introText);
 
@@ -198,8 +199,8 @@ export class BrowseWatchesStep {
       const totalToDisplay = displayProducts.length;
 
       const navButtons = [
-        { text: isAr ? "⌚ ماركات أخرى" : "⌚ Other Brands", payload: "menu_browse_catalog" },
-        { text: isAr ? "🏠 القائمة الرئيسية" : "🏠 Main Menu", payload: "menu_main" },
+        { text: isAr ? "ماركات أخرى" : "Other Brands", payload: "menu_browse_catalog" },
+        { text: isAr ? "القائمة الرئيسية" : "Main Menu", payload: "menu_main" },
       ];
 
       for (let i = 0; i < totalToDisplay; i++) {
@@ -226,9 +227,9 @@ export class BrowseWatchesStep {
           : `https://alhomaidhigroup.com`;
 
         const caption =
-          `⌚ *${name}*\n` +
-          `💵 *${isAr ? "السعر:" : "Price:"}* ${price} SAR\n` +
-          `🔗 *${isAr ? "تفاصيل الساعة والطلب:" : "View Product:"}* ${productUrl}`;
+          `*${name}*\n` +
+          `${isAr ? "السعر:" : "Price:"} ${price} SAR\n` +
+          `${isAr ? "تفاصيل المنتج:" : "Product Details:"} ${productUrl}`;
 
         const validImage =
           imageUrl && typeof imageUrl === "string" && (imageUrl.startsWith("http://") || imageUrl.startsWith("https://"))
@@ -245,9 +246,18 @@ export class BrowseWatchesStep {
 
           if (validImage) {
             try {
-              await this.aisensyService.sendQuickReplyMessage(phoneNumber, caption, navButtons, validImage);
+              const res = await this.aisensyService.sendQuickReplyMessage(phoneNumber, caption, navButtons, validImage);
+              if (!res.success) {
+                throw new Error(res.error || "Interactive image failed");
+              }
             } catch {
-              await this.aisensyService.sendQuickReplyMessage(phoneNumber, caption, navButtons);
+              // Fallback: send image with caption, pause for delivery, then send navigation buttons
+              await this.aisensyService.sendImageMessage(phoneNumber, validImage, caption);
+              await new Promise((resolve) => setTimeout(resolve, 1500));
+              const navPrompt = isAr
+                ? "يمكنكم استعراض ماركات أخرى أو العودة للقائمة الرئيسية:"
+                : "You may browse other brands or return to the main menu:";
+              await this.aisensyService.sendQuickReplyMessage(phoneNumber, navPrompt, navButtons);
             }
           } else {
             await this.aisensyService.sendQuickReplyMessage(phoneNumber, caption, navButtons);
@@ -264,8 +274,8 @@ export class BrowseWatchesStep {
             await this.aisensyService.sendTextMessage(phoneNumber, caption);
           }
 
-          // Delay 800ms to guarantee strict sequential delivery on WhatsApp
-          await new Promise((resolve) => setTimeout(resolve, 800));
+          // Delay 1200ms to guarantee strict sequential delivery on WhatsApp
+          await new Promise((resolve) => setTimeout(resolve, 1200));
         }
       }
 
@@ -283,14 +293,15 @@ export class BrowseWatchesStep {
         : "An error occurred while loading watches. Please try again.";
 
       await this.aisensyService.sendQuickReplyMessage(phoneNumber, fallbackText, [
-        { text: isAr ? "⌚ ماركات أخرى" : "⌚ Other Brands", payload: "menu_browse_catalog" },
-        { text: isAr ? "🏠 القائمة الرئيسية" : "🏠 Main Menu", payload: "menu_main" },
+        { text: isAr ? "ماركات أخرى" : "Other Brands", payload: "menu_browse_catalog" },
+        { text: isAr ? "القائمة الرئيسية" : "Main Menu", payload: "menu_main" },
       ]);
 
       return {
         success: false,
         handled: true,
         messageSent: true,
+        nextStep: "BROWSE_CATALOG",
         error: error.message,
       };
     }

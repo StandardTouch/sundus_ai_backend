@@ -22,25 +22,95 @@ export class FlowRouter {
     const messageType = (message?.message_type || message?.type || "").toUpperCase();
     const messageContent = message?.message_content || {};
 
-    // Extract payload and text
-    const rawText = (messageContent.text || message.text || "").trim();
-    const callbackPayload = (
+    // 1. Comprehensive payload extraction from all WhatsApp & AiSensy interactive structures
+    const explicitPayload = (
+      messageContent.interactive?.list_reply?.id ||
+      messageContent.interactive?.button_reply?.id ||
+      messageContent.list_reply?.id ||
+      messageContent.button_reply?.id ||
+      message?.interactive?.list_reply?.id ||
+      message?.interactive?.button_reply?.id ||
+      message?.list_reply?.id ||
+      message?.button_reply?.id ||
       messageContent.callbackPayload ||
       messageContent.payload ||
       message.payload ||
-      rawText
+      messageContent.id ||
+      ""
     ).trim();
+
+    // 2. Comprehensive text & title extraction
+    const rawText = (
+      messageContent.interactive?.list_reply?.title ||
+      messageContent.interactive?.button_reply?.title ||
+      messageContent.list_reply?.title ||
+      messageContent.button_reply?.title ||
+      messageContent.text ||
+      messageContent.title ||
+      message.text ||
+      message.title ||
+      ""
+    ).trim();
+
+    // 3. Fallback / Normalized payload detection from text if payload is not explicit
+    let resolvedPayload = explicitPayload;
+    const lowerText = rawText.toLowerCase();
+
+    if (!resolvedPayload) {
+      if (
+        lowerText.includes("track") ||
+        lowerText.includes("order") ||
+        lowerText.includes("تتبع") ||
+        lowerText.includes("طلبات")
+      ) {
+        resolvedPayload = "menu_track_order";
+      } else if (
+        lowerText.includes("browse") ||
+        lowerText.includes("watch") ||
+        lowerText.includes("catalog") ||
+        lowerText.includes("ساعات") ||
+        lowerText.includes("تصفح")
+      ) {
+        resolvedPayload = "menu_browse_catalog";
+      } else if (
+        lowerText.includes("location") ||
+        lowerText.includes("store") ||
+        lowerText.includes("branch") ||
+        lowerText.includes("فروع") ||
+        lowerText.includes("معارض")
+      ) {
+        resolvedPayload = "menu_store_locations";
+      } else if (
+        lowerText.includes("support") ||
+        lowerText.includes("agent") ||
+        lowerText.includes("customer") ||
+        lowerText.includes("خدمة") ||
+        lowerText.includes("عملاء")
+      ) {
+        resolvedPayload = "menu_support";
+      } else if (
+        lowerText.includes("main menu") ||
+        lowerText === "menu" ||
+        lowerText === "0" ||
+        lowerText.includes("القائمة")
+      ) {
+        resolvedPayload = "menu_main";
+      } else {
+        resolvedPayload = rawText;
+      }
+    }
 
     const isButtonClick =
       messageType === "QUICK_REPLY" ||
       messageType === "BUTTON" ||
       messageType === "BUTTON_REPLY" ||
       messageType === "INTERACTIVE" ||
-      messageType === "LIST_REPLY";
+      messageType === "LIST_REPLY" ||
+      Boolean(explicitPayload);
 
     const action: FlowAction = {
       type: isButtonClick ? "BUTTON_CLICK" : "TEXT_INPUT",
-      payload: callbackPayload,
+      payload: resolvedPayload,
       rawText,
     };
 
@@ -50,12 +120,35 @@ export class FlowRouter {
       actionType: action.type,
       payload: action.payload,
       rawText: action.rawText,
+      explicitPayload,
     });
 
     const session = await flowSessionService.getSession(phoneNumber);
 
-    // 1. Explicit command to change language or restart
-    const normalizedText = rawText.toLowerCase();
+    // 4. Greetings handling ("hi", "hello", "hey", "start", "مرحبا", "سلام", "اهلا", etc.)
+    const isGreetingWord =
+      lowerText === "hi" ||
+      lowerText === "hello" ||
+      lowerText === "hey" ||
+      lowerText === "start" ||
+      lowerText === "مرحبا" ||
+      lowerText === "اهلا" ||
+      lowerText === "أهلا" ||
+      lowerText === "سلام" ||
+      lowerText === "السلام عليكم";
+
+    if (isGreetingWord) {
+      if (!session || !session.language) {
+        logger.info("[FlowRouter] Greeting from new user - sending language prompt", { phoneNumber });
+        return languageStep.sendPrompt(phoneNumber);
+      } else {
+        logger.info("[FlowRouter] Greeting from existing user - sending main menu", { phoneNumber, language: session.language });
+        return mainMenuStep.sendMenu(phoneNumber, session.language);
+      }
+    }
+
+    // 5. Explicit command to change language or restart
+    const normalizedText = lowerText;
     if (
       normalizedText === "language" ||
       normalizedText === "lang" ||
@@ -68,7 +161,7 @@ export class FlowRouter {
       return languageStep.sendPrompt(phoneNumber);
     }
 
-    // 2. If a language button was tapped (e.g. lang_en or lang_ar)
+    // 6. If a language button was tapped (e.g. lang_en or lang_ar)
     if (
       action.payload === "lang_en" ||
       action.payload === "lang_ar" ||
@@ -77,7 +170,7 @@ export class FlowRouter {
       return languageStep.handleResponse(phoneNumber, action);
     }
 
-    // 3. If user has no session or no language chosen yet, send the language greeting prompt!
+    // 7. If user has no session or no language chosen yet, send the language greeting prompt!
     if (!session || !session.language) {
       logger.info("[FlowRouter] New user or no language set - prompting language greeting", { phoneNumber });
       return languageStep.sendPrompt(phoneNumber);
@@ -85,35 +178,20 @@ export class FlowRouter {
 
     const currentLang = session.language;
 
-    // 4. Global Return to Main Menu command or button
+    // 8. Global Return to Main Menu command or button
     if (
       action.payload === "menu_main" ||
       normalizedText === "menu" ||
       normalizedText === "main menu" ||
       normalizedText === "قائمة" ||
       normalizedText === "القائمة" ||
-      normalizedText === "start" ||
       normalizedText === "0"
     ) {
       logger.info("[FlowRouter] User requested main menu", { phoneNumber });
       return mainMenuStep.sendMenu(phoneNumber, currentLang);
     }
 
-    // 5. Brand Selection in Browse Watches
-    if (
-      action.payload.startsWith("brand_") ||
-      session.currentStep === "BROWSE_CATALOG"
-    ) {
-      // If user clicked another menu item from browse step
-      if (action.payload === "menu_browse_catalog") {
-        return browseWatchesStep.sendBrandList(phoneNumber, currentLang);
-      }
-      if (action.payload.startsWith("brand_")) {
-        return browseWatchesStep.handleBrandSelection(phoneNumber, action.payload, currentLang);
-      }
-    }
-
-    // 6. Direct Menu Actions
+    // 9. Direct Menu Actions
     if (action.payload === "menu_track_order") {
       return orderTrackingStep.sendOrderTracking(phoneNumber, currentLang);
     }
@@ -130,7 +208,17 @@ export class FlowRouter {
       return supportStep.sendSupport(phoneNumber, currentLang);
     }
 
-    // 7. If user is in MAIN_MENU state, check if it's a numeric option (1, 2, 3, 4)
+    // 10. Brand Selection in Browse Watches
+    if (
+      action.payload.startsWith("brand_") ||
+      session.currentStep === "BROWSE_CATALOG"
+    ) {
+      if (action.payload.startsWith("brand_")) {
+        return browseWatchesStep.handleBrandSelection(phoneNumber, action.payload, currentLang);
+      }
+    }
+
+    // 11. If user is in MAIN_MENU state, check numeric/word choices (1, 2, 3, 4)
     if (session.currentStep === "MAIN_MENU") {
       const menuResult = await mainMenuStep.handleResponse(phoneNumber, action, currentLang);
       if (menuResult.handled) {
@@ -138,8 +226,7 @@ export class FlowRouter {
       }
     }
 
-    // 8. Unhandled Free-Text Fallback -> Pass to AI Assistant (TextMessageHandler)
-    // If the user types any question, product query, or policy question, Sundus AI answers intelligently like before!
+    // 12. Unhandled Free-Text Fallback -> Pass to AI Assistant (TextMessageHandler)
     if (action.type === "TEXT_INPUT" && !isButtonClick) {
       logger.info("[FlowRouter] Free-text message received - passing to AI Assistant (TextMessageHandler)", {
         phoneNumber,
@@ -149,11 +236,11 @@ export class FlowRouter {
 
       return {
         success: true,
-        handled: false, // Handled: false allows WebhookHandlerService to invoke TextMessageHandler (OpenAI)
+        handled: false,
       };
     }
 
-    // 9. Default button fallback: show Main Menu
+    // 13. Default button fallback: show Main Menu
     logger.info("[FlowRouter] Showing main menu to user", { phoneNumber, language: currentLang });
     return mainMenuStep.sendMenu(phoneNumber, currentLang);
   }

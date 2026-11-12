@@ -120,12 +120,14 @@ export class AISensyService {
   async sendQuickReplyMessage(
     phoneNumber: PhoneNumber,
     text: string,
-    buttons: QuickReplyButton[]
+    buttons: QuickReplyButton[],
+    imageUrl?: string
   ): Promise<AISensyResponse> {
     return this.api.sendInteractive(
       phoneNumber,
       text,
-      buttons.map(btn => ({ id: btn.payload, title: btn.text }))
+      buttons.map(btn => ({ id: btn.payload, title: btn.text })),
+      imageUrl ? { type: "image", imageUrl } : undefined
     );
   }
 

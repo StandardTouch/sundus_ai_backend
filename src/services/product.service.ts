@@ -146,7 +146,7 @@ export class ProductService {
         }
       }
 
-      formatted += `حالة التوفر: ${details.stock_status === "instock" ? "✅ متوفر" : "❌ غير متوفر"}\n`;
+      formatted += `حالة التوفر: ${details.stock_status === "instock" ? "متوفر" : "غير متوفر"}\n`;
       if (details.stock_quantity > 0) {
         formatted += `الكمية المتاحة: ${details.stock_quantity}\n`;
       }
@@ -155,7 +155,7 @@ export class ProductService {
         formatted += `\n${details.short_description}\n`;
       }
 
-      formatted += `\n🛒 الشراء: ${productUrl}`;
+      formatted += `\nالشراء: ${productUrl}`;
       if (imageCount > 0) {
         formatted += `\n\n(يتوفر ${imageCount} صور)`;
       }
@@ -181,7 +181,7 @@ export class ProductService {
       }
     }
 
-    formatted += `Stock: ${details.stock_status === "instock" ? "✅ In Stock" : "❌ Out of Stock"}\n`;
+    formatted += `Stock: ${details.stock_status === "instock" ? "In Stock" : "Out of Stock"}\n`;
     
     if (details.stock_quantity > 0) {
       formatted += `Available Quantity: ${details.stock_quantity}\n`;
@@ -191,7 +191,7 @@ export class ProductService {
       formatted += `\n${details.short_description}\n`;
     }
 
-    formatted += `\n🛒 Purchase: ${productUrl}`;
+    formatted += `\nPurchase: ${productUrl}`;
     
     if (imageCount > 0) {
       formatted += `\n\n(${imageCount} image${imageCount > 1 ? "s" : ""} available)`;
@@ -222,18 +222,18 @@ export class ProductService {
           productText += `   الماركة: ${brandNames}\n`;
         }
         productText += `   السعر: ${details.price} ريال\n`;
-        productText += `   🛒 ${productUrl}`;
+        productText += `   رابط المنتج: ${productUrl}`;
         return productText;
       }
 
-      // WhatsApp-friendly format: plain text with emojis, no markdown
+      // WhatsApp-friendly format: plain text, no markdown links, no emojis
       let productText = `${index + 1}. *${details.name}*\n`;
       productText += `   SKU: ${details.sku}\n`;
       if (brandNames) {
         productText += `   Brand: ${brandNames}\n`;
       }
       productText += `   Price: ${details.price} SAR\n`;
-      productText += `   🛒 ${productUrl}`;
+      productText += `   Product Link: ${productUrl}`;
       
       return productText;
     });

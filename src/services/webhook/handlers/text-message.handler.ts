@@ -175,7 +175,7 @@ RESPONSE FORMAT:
   * Use _underscores_ for italic text if needed
   * NEVER use markdown links like [text](url) - WhatsApp doesn't support them
   * Always include full URLs as plain text (e.g., https://example.com/product)
-  * Use emojis sparingly and appropriately (🛒 for purchase links)
+  * Maintain an elegant, professional tone. Do not use emojis in your responses.
   * Keep messages under 4096 characters (WhatsApp limit)
   * Use line breaks (\\n) for readability
 ${hasProductTools ? `- When showing multiple products from a search:
@@ -252,8 +252,8 @@ export class TextMessageHandler extends BaseMessageHandler {
       // Detect user language and send fun energy message
       const userLanguage = detectLanguage(userMessage);
       const energyMessage = userLanguage === 'ar'
-        ? "عذرًا! طاقتي منخفضة! ⚡ أحتاج إلى دفعة سريعة للعودة لمساعدتك. سأكون جاهزًا لمساعدتك قريبًا!"
-        : "Oops! I'm running low on energy! ⚡ I need a quick boost to get back to helping you. I'll be ready to assist you soon!";
+        ? "عذراً، نواجه صيانة فنية مؤقتة في الوقت الحالي. سنعاود خدمتكم في أقرب وقت."
+        : "We are currently experiencing brief technical maintenance. We will be back to assist you shortly.";
 
       await this.sendMessage(phoneNumber, energyMessage, tracker);
       return {
@@ -571,8 +571,8 @@ export class TextMessageHandler extends BaseMessageHandler {
         // Detect user language and send fun energy message
         const userLanguage = detectLanguage(userMessage);
         const energyMessage = userLanguage === 'ar'
-          ? "عذرًا! طاقتي منخفضة! ⚡ أحتاج إلى دفعة سريعة للعودة لمساعدتك. سأكون جاهزًا لمساعدتك قريبًا!"
-          : "Oops! I'm running low on energy! ⚡ I need a quick boost to get back to helping you. I'll be ready to assist you soon!";
+          ? "عذراً، نواجه صيانة فنية مؤقتة في الوقت الحالي. سنعاود خدمتكم في أقرب وقت."
+          : "We are currently experiencing brief technical maintenance. We will be back to assist you shortly.";
 
         await this.sendMessage(phoneNumber, energyMessage, tracker);
         return {

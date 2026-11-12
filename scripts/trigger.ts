@@ -36,41 +36,41 @@ const DEFAULT_PHONE = process.env.TEST_PHONE_NUMBER || "917204708561";
 // Map simple words to flow actions
 const ACTION_MAP: Record<string, { payload: string; text: string; type: string }> = {
   // Main Menu
-  "menu": { payload: "menu_main", text: "🏠 Main Menu", type: "QUICK_REPLY" },
-  "0": { payload: "menu_main", text: "🏠 Main Menu", type: "QUICK_REPLY" },
-  "main": { payload: "menu_main", text: "🏠 Main Menu", type: "QUICK_REPLY" },
+  "menu": { payload: "menu_main", text: "Main Menu", type: "QUICK_REPLY" },
+  "0": { payload: "menu_main", text: "Main Menu", type: "QUICK_REPLY" },
+  "main": { payload: "menu_main", text: "Main Menu", type: "QUICK_REPLY" },
 
   // Orders
-  "orders": { payload: "menu_track_order", text: "📦 Track My Orders", type: "LIST_REPLY" },
-  "order": { payload: "menu_track_order", text: "📦 Track My Orders", type: "LIST_REPLY" },
-  "track": { payload: "menu_track_order", text: "📦 Track My Orders", type: "LIST_REPLY" },
-  "1": { payload: "menu_track_order", text: "📦 Track My Orders", type: "LIST_REPLY" },
+  "orders": { payload: "menu_track_order", text: "Track My Orders", type: "LIST_REPLY" },
+  "order": { payload: "menu_track_order", text: "Track My Orders", type: "LIST_REPLY" },
+  "track": { payload: "menu_track_order", text: "Track My Orders", type: "LIST_REPLY" },
+  "1": { payload: "menu_track_order", text: "Track My Orders", type: "LIST_REPLY" },
 
   // Browse Watches
-  "browse": { payload: "menu_browse_catalog", text: "⌚ Browse Watches", type: "LIST_REPLY" },
-  "watches": { payload: "menu_browse_catalog", text: "⌚ Browse Watches", type: "LIST_REPLY" },
-  "watch": { payload: "menu_browse_catalog", text: "⌚ Browse Watches", type: "LIST_REPLY" },
-  "brands": { payload: "menu_browse_catalog", text: "⌚ Browse Watches", type: "LIST_REPLY" },
-  "2": { payload: "menu_browse_catalog", text: "⌚ Browse Watches", type: "LIST_REPLY" },
+  "browse": { payload: "menu_browse_catalog", text: "Browse Watches", type: "LIST_REPLY" },
+  "watches": { payload: "menu_browse_catalog", text: "Browse Watches", type: "LIST_REPLY" },
+  "watch": { payload: "menu_browse_catalog", text: "Browse Watches", type: "LIST_REPLY" },
+  "brands": { payload: "menu_browse_catalog", text: "Browse Watches", type: "LIST_REPLY" },
+  "2": { payload: "menu_browse_catalog", text: "Browse Watches", type: "LIST_REPLY" },
 
   // Store Locations
-  "stores": { payload: "menu_store_locations", text: "📍 Store Locations", type: "LIST_REPLY" },
-  "store": { payload: "menu_store_locations", text: "📍 Store Locations", type: "LIST_REPLY" },
-  "locations": { payload: "menu_store_locations", text: "📍 Store Locations", type: "LIST_REPLY" },
-  "location": { payload: "menu_store_locations", text: "📍 Store Locations", type: "LIST_REPLY" },
-  "3": { payload: "menu_store_locations", text: "📍 Store Locations", type: "LIST_REPLY" },
+  "stores": { payload: "menu_store_locations", text: "Store Locations", type: "LIST_REPLY" },
+  "store": { payload: "menu_store_locations", text: "Store Locations", type: "LIST_REPLY" },
+  "locations": { payload: "menu_store_locations", text: "Store Locations", type: "LIST_REPLY" },
+  "location": { payload: "menu_store_locations", text: "Store Locations", type: "LIST_REPLY" },
+  "3": { payload: "menu_store_locations", text: "Store Locations", type: "LIST_REPLY" },
 
   // Customer Support
-  "support": { payload: "menu_support", text: "👨‍💼 Customer Support", type: "LIST_REPLY" },
-  "agent": { payload: "menu_support", text: "👨‍💼 Customer Support", type: "LIST_REPLY" },
-  "help": { payload: "menu_support", text: "👨‍💼 Customer Support", type: "LIST_REPLY" },
-  "4": { payload: "menu_support", text: "👨‍💼 Customer Support", type: "LIST_REPLY" },
+  "support": { payload: "menu_support", text: "Customer Support", type: "LIST_REPLY" },
+  "agent": { payload: "menu_support", text: "Customer Support", type: "LIST_REPLY" },
+  "help": { payload: "menu_support", text: "Customer Support", type: "LIST_REPLY" },
+  "4": { payload: "menu_support", text: "Customer Support", type: "LIST_REPLY" },
 
   // Languages
-  "english": { payload: "lang_en", text: "English 🇬🇧", type: "QUICK_REPLY" },
-  "en": { payload: "lang_en", text: "English 🇬🇧", type: "QUICK_REPLY" },
-  "arabic": { payload: "lang_ar", text: "العربية 🇸🇦", type: "QUICK_REPLY" },
-  "ar": { payload: "lang_ar", text: "العربية 🇸🇦", type: "QUICK_REPLY" },
+  "english": { payload: "lang_en", text: "English", type: "QUICK_REPLY" },
+  "en": { payload: "lang_en", text: "English", type: "QUICK_REPLY" },
+  "arabic": { payload: "lang_ar", text: "العربية", type: "QUICK_REPLY" },
+  "ar": { payload: "lang_ar", text: "العربية", type: "QUICK_REPLY" },
 
   // Greeting
   "hi": { payload: "hi", text: "Hi", type: "TEXT" },
@@ -145,13 +145,13 @@ function promptInteractive(): Promise<string> {
 ╔══════════════════════════════════════════════════╗
 ║        🤖 Sundus AI - Flow Terminal Trigger      ║
 ╠══════════════════════════════════════════════════╣
-║ [1] orders   - 📦 Track My Orders                ║
-║ [2] browse   - ⌚ Browse Watches (Brand List)    ║
-║ [3] stores   - 📍 Store Locations (5 Showrooms)  ║
-║ [4] support  - 👨‍💼 Customer Support / Agent       ║
-║ [0] menu     - 🏠 Return to Main Menu            ║
-║ [en] english - 🇬🇧 English Language               ║
-║ [ar] arabic  - 🇸🇦 Arabic Language                ║
+║ [1] orders   - Track My Orders                ║
+║ [2] browse   - Browse Watches (Brand List)    ║
+║ [3] stores   - Store Locations (5 Showrooms)  ║
+║ [4] support  - Customer Support / Agent       ║
+║ [0] menu     - Return to Main Menu            ║
+║ [en] english - English Language               ║
+║ [ar] arabic  - Arabic Language                ║
 ║                                                  ║
 ║ Or type any brand directly: tommy, coach, etc.   ║
 ╚══════════════════════════════════════════════════╝

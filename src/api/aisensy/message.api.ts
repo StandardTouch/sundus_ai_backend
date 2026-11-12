@@ -249,27 +249,39 @@ export class AISensyMessageAPI {
   async sendInteractive(
     phoneNumber: string,
     bodyText: string,
-    buttons: Array<{ id: string; title: string }>
+    buttons: Array<{ id: string; title: string }>,
+    header?: { type: "image"; imageUrl: string }
   ): Promise<AISensyResponse> {
+    const interactivePayload: any = {
+      type: "button",
+      body: {
+        text: bodyText,
+      },
+      action: {
+        buttons: buttons.map(button => ({
+          type: "reply" as const,
+          reply: {
+            id: button.id,
+            title: button.title,
+          },
+        })),
+      },
+    };
+
+    if (header && header.type === "image") {
+      interactivePayload.header = {
+        type: "image",
+        image: {
+          link: header.imageUrl,
+        },
+      };
+    }
+
     return this.sendMessage({
       to: phoneNumber,
       type: "interactive",
       recipient_type: "individual",
-      interactive: {
-        type: "button",
-        body: {
-          text: bodyText,
-        },
-        action: {
-          buttons: buttons.map(button => ({
-            type: "reply" as const,
-            reply: {
-              id: button.id,
-              title: button.title,
-            },
-          })),
-        },
-      },
+      interactive: interactivePayload,
     });
   }
 

@@ -229,12 +229,12 @@ export class WebhookHandlerService {
         const isAr = userLanguage === 'ar';
 
         const menuPrompt = isAr
-          ? "هل تحتاج إلى أي مساعدة أخرى؟ يمكنك العودة إلى القائمة الرئيسية في أي وقت:"
-          : "Need anything else? You can return to the main menu at any time:";
+          ? "للمزيد من الخيارات، يمكنكم الرجوع إلى القائمة الرئيسية في أي وقت:"
+          : "For additional options, you may return to the main menu at any time:";
 
         const menuButtons = [
           {
-            text: isAr ? "🏠 القائمة الرئيسية" : "🏠 Main Menu",
+            text: isAr ? "القائمة الرئيسية" : "Main Menu",
             payload: "menu_main",
           },
         ];
